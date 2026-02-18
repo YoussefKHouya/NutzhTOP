@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* NOTE: mushroom.css is loaded via <link> in app/layout.tsx (cannot @import after Tailwind). */
+
+@keyframes move-and-flip {
+  0% {
+    left: 0;
+    transform: scaleX(1);
+  }
+  49% {
+    left: calc(100% - 70px);
+    transform: scaleX(1);
+  }
+  50% {
+    left: calc(100% - 70px);
+    transform: scaleX(-1);
+  }
+  99% {
+    left: 0;
+    transform: scaleX(-1);
+  }
+  100% {
+    left: 0;
+    transform: scaleX(1);
+  }
+}
+
+.animate-cat {
+  position: absolute;
+  bottom: -2rem;
+  animation: move-and-flip 4s linear infinite;
+  image-rendering: pixelated;
+}
+
+body {
+  background: #0a0a0a;
+  color: #ededed;
+}
+@-webkit-keyframes peekaboo {
+  0% { -webkit-transform: translateY(100%); transform: translateY(100%); }
+  15% { -webkit-transform: translateY(50%); transform: translateY(50%); }
+  20% { -webkit-transform: translateY(50%); transform: translateY(50%); }
+  25% { -webkit-transform: translateY(100%); transform: translateY(100%); }
+  80% { -webkit-transform: translateY(100%); transform: translateY(100%); }
+  100% { -webkit-transform: translateY(0); transform: translateY(0); }
+}
+
+@-moz-keyframes peekaboo {
+  0% { -moz-transform: translateY(100%); transform: translateY(100%); }
+  15% { -moz-transform: translateY(50%); transform: translateY(50%); }
+  20% { -moz-transform: translateY(50%); transform: translateY(50%); }
+  25% { -moz-transform: translateY(100%); transform: translateY(100%); }
+  80% { -moz-transform: translateY(100%); transform: translateY(100%); }
+  100% { -moz-transform: translateY(0); transform: translateY(0); }
+}
+
+@-o-keyframes peekaboo {
+  0% { -o-transform: translateY(100%); transform: translateY(100%); }
+  15% { -o-transform: translateY(50%); transform: translateY(50%); }
+  20% { -o-transform: translateY(50%); transform: translateY(50%); }
+  25% { -o-transform: translateY(100%); transform: translateY(100%); }
+  80% { -o-transform: translateY(100%); transform: translateY(100%); }
+  100% { -o-transform: translateY(0); transform: translateY(0); }
+}
+
+@keyframes peekaboo {
+  0% {
+    -webkit-transform: translateY(100%);
+    -moz-transform: translateY(100%);
+    -o-transform: translateY(100%);
+    transform: translateY(100%);
+  }
+  15% {
+    -webkit-transform: translateY(50%);
+    -moz-transform: translateY(50%);
+    -o-transform: translateY(50%);
+    transform: translateY(50%);
+  }
+  20% {
+    -webkit-transform: translateY(50%);
+    -moz-transform: translateY(50%);
+    -o-transform: translateY(50%);
+    transform: translateY(50%);
+  }
+  25% {
+    -webkit-transform: translateY(100%);
+    -moz-transform: translateY(100%);
+    -o-transform: translateY(100%);
+    transform: translateY(100%);
+  }
+  80% {
+    -webkit-transform: translateY(100%);
+    -moz-transform: translateY(100%);
+    -o-transform: translateY(100%);
+    transform: translateY(100%);
+  }
+  100% {
+    -webkit-transform: translateY(0);
+    -moz-transform: translateY(0);
+    -o-transform: translateY(0);
+    transform: translateY(0);
+  }
+}
+
+.animate-peek {
+  -webkit-animation: peekaboo 3s ease-in-out forwards;
+  -moz-animation: peekaboo 3s ease-in-out forwards;
+  -o-animation: peekaboo 3s ease-in-out forwards;
+  animation: peekaboo 3s ease-in-out forwards;
+  -webkit-animation-delay: 0s;
+  -moz-animation-delay: 0s;
+  -o-animation-delay: 0s;
+  animation-delay: 0s;
+}
