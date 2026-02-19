@@ -37,9 +37,9 @@ export function CodeBlock({ code, lang, className }: { code: string; lang?: stri
   const codeClassName = className || (lang ? `language-${lang}` : undefined);
 
   return (
-    <div className="my-4 overflow-hidden rounded-lg border border-zinc-700/50 bg-[#111111]">
+    <div className="code-block-shell my-4 overflow-hidden rounded-lg border border-zinc-700/50 bg-[#111111]" data-code-lang={lang || "code"}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-zinc-700/50 px-3 py-2">
+      <div className="code-block-header flex items-center justify-between gap-2 border-b border-zinc-700/50 px-3 py-2">
         <span className="text-xs text-zinc-400 font-mono">{lang || "code"}</span>
         <div className="flex gap-2">
           <button

@@ -73,7 +73,7 @@ function PinnedCodePanel() {
 
   return (
     <div className="fixed right-4 top-24 z-[9999] w-[min(520px,calc(100vw-32px))] max-h-[calc(100vh-140px)]">
-      <div className="overflow-hidden rounded-[14px] border border-white/10 bg-[#111111]/90 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md">
+      <div className="pinned-code-shell overflow-hidden rounded-[14px] border border-white/10 bg-[#111111]/90 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-md" data-pin-lang={pinned.lang || "code"}>
         <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2 font-mono text-xs text-white/85">
           <div className="truncate">{pinned.title ?? "Pinned code"}{pinned.lang ? ` · ${pinned.lang}` : ""}</div>
           <div className="flex items-center gap-2">
@@ -94,3 +94,10 @@ function PinnedCodePanel() {
     </div>
   );
 }
+
+
+
+
+
+
+
