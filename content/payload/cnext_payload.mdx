@@ -3,7 +3,7 @@ title: Cnext_Payload
 date: '2025-01-29'
 description: ''
 type: writeup
-platform: hackmyvm
+platform: payload
 tags:
   - GLIBC
   - PAYLOAD
@@ -16,7 +16,7 @@ cover: /mc/uploads/2025/02/126-b.webp
 
 This script is an exploit for **CVE-2024-2961**, which is a **PHP file-read to Remote Code Execution (RCE) vulnerability**. It takes advantage of PHP’s `php://filter` wrapper and memory heap corruption to gain arbitrary code execution on a vulnerable server. as mentioned in the write-up and the articles
 
-```bash
+```python
 #!/usr/bin/env python3
 #
 # CNEXT: PHP file-read to RCE (CVE-2024-2961)
@@ -54,7 +54,7 @@ class Remote:
     
     The code here serves as an example that attacks a page that looks like:
     
-```
+
      None:
         self.url = url
         self.session = Session()
@@ -532,6 +532,4 @@ class Region:
         return self.stop - self.start
 
 Exploit()
-```text
-
 ```

