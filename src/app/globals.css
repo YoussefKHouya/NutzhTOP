@@ -1,35 +1,35 @@
 @import "tailwindcss";
 
-/* NOTE: mushroom.css is loaded via <link> in app/layout.tsx (cannot @import after Tailwind). */
+/* NOTE: theme.css is loaded via <link> in app/layout.tsx (cannot @import after Tailwind). */
 
-@keyframes move-and-flip {
-  0% {
-    left: 0;
-    transform: scaleX(1);
-  }
-  49% {
-    left: calc(100% - 70px);
-    transform: scaleX(1);
-  }
-  50% {
-    left: calc(100% - 70px);
-    transform: scaleX(-1);
-  }
-  99% {
-    left: 0;
-    transform: scaleX(-1);
-  }
-  100% {
-    left: 0;
-    transform: scaleX(1);
-  }
+@keyframes mario-run {
+  0% { left: 0; transform: scaleX(1); }
+  49% { left: calc(100% - var(--mario-w)); transform: scaleX(1); }
+  50% { left: calc(100% - var(--mario-w)); transform: scaleX(-1); }
+  99% { left: 0; transform: scaleX(-1); }
+  100% { left: 0; transform: scaleX(1); }
+}
+
+.logo-track {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  padding-bottom: 0.95rem;
+  min-width: 210px;
 }
 
 .animate-cat {
+  --mario-w: 80px;
   position: absolute;
-  bottom: -2rem;
-  animation: move-and-flip 4s linear infinite;
+  left: 0;
+  bottom: -0.9rem;
+  width: var(--mario-w);
+  height: auto;
+  display: block;
   image-rendering: pixelated;
+  pointer-events: none;
+  will-change: transform;
+  animation: mario-run 3s linear infinite;
 }
 
 body {
@@ -112,3 +112,10 @@ body {
   -o-animation-delay: 0s;
   animation-delay: 0s;
 }
+
+
+
+
+
+
+

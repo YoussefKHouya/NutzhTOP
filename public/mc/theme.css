@@ -1,0 +1,8 @@
+/* Main site theme entrypoint.
+   Keep custom, readable edits here.
+   Legacy generated styles stay isolated in legacy-theme.css. */
+@import url("./legacy-theme.css");
+
+:root {
+  --site-accent: #cc3333;
+}

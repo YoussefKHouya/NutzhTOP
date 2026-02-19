@@ -1,0 +1,4 @@
+/* Post/article theme entrypoint.
+   Keep custom, readable post overrides here.
+   Legacy generated styles stay isolated in legacy-post.css. */
+@import url("./legacy-post.css");

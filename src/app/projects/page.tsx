@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { MushroomShell } from "@/components/MushroomShell";
+import { SiteShell } from "@/components/SiteShell";
 import { getAllPosts } from "@/lib/posts";
 
 export default function ProjectsPage() {
   const list = getAllPosts().filter((p) => (p.meta.type || "writeup") === "project");
 
   return (
-    <MushroomShell>
+    <SiteShell>
       <main className="flex-grow max-w-6xl mx-auto w-full px-4 py-10 md:py-14">
         <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center opacity-40 flex items-center justify-center font-upheavtt">
           <span className="w-8 md:w-16 h-px bg-gray-400 mr-4"></span>
@@ -33,6 +33,7 @@ export default function ProjectsPage() {
           ))}
         </div>
       </main>
-    </MushroomShell>
+    </SiteShell>
   );
 }
+

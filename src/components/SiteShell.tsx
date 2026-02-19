@@ -1,18 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-export function MushroomShell({ children }: { children: React.ReactNode }) {
+export function SiteShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [meowOff, setMeowOff] = useState(false);
+  const [soundMuted, setSoundMuted] = useState(false);
+  const clickFxRef = useRef<HTMLAudioElement | null>(null);
+  const SOUND_PREF_KEY = "site.soundMuted";
 
-  async function playMeowFx() {
+  async function playClickFx() {
+    if (soundMuted) return;
+
     try {
-      // primary: real wav sample
-      const sample = new Audio("/sounds/meow.wav");
-      sample.volume = 0.9;
-      await sample.play();
+      if (!clickFxRef.current) {
+        clickFxRef.current = new Audio("/sounds/coin-sound.mp3");
+        clickFxRef.current.preload = "auto";
+        clickFxRef.current.volume = 0.9;
+      }
+
+      clickFxRef.current.currentTime = 0;
+      await clickFxRef.current.play();
       return;
     } catch {
       // fallback: synth beep
@@ -55,12 +63,45 @@ export function MushroomShell({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(SOUND_PREF_KEY) ?? window.localStorage.getItem("mushroom.soundMuted");
+      if (saved === "1") setSoundMuted(true);
+    } catch {
+      // ignore storage issues
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SOUND_PREF_KEY, soundMuted ? "1" : "0");
+    } catch {
+      // ignore storage issues
+    }
+  }, [soundMuted]);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setMenuOpen(false);
     }
+
+    function onAnyClick(e: MouseEvent) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-click-sound='off']")) return;
+
+      const clickable = target.closest("a, button, [role='button']");
+      if (!clickable) return;
+
+      void playClickFx();
+    }
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    document.addEventListener("click", onAnyClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onAnyClick);
+    };
+  }, [soundMuted]);
 
   return (
     <div className="mt-12 flex flex-col flex-grow">
@@ -68,23 +109,23 @@ export function MushroomShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-6xl mx-auto flex justify-between items-center relative">
           <button
             className="md:absolute md:right-16 absolute left-0 z-50 transition-all duration-300 group flex items-center gap-2"
-            aria-label="Toggle Meow"
+            aria-label="Toggle Sound"
             type="button"
+            data-click-sound="off"
             onClick={() => {
-              setMeowOff((v) => !v);
-              playMeowFx();
+              setSoundMuted((v) => !v);
             }}
           >
             <div className="relative flex items-center gap-2 opacity-100">
               <img
-                alt="Meow Toggle"
+                alt="Sound Toggle"
                 loading="lazy"
                 width={32}
                 height={32}
                 decoding="async"
                 className="image-rendering-pixelated w-6 h-6 md:w-8 md:h-8"
                 style={{ color: "transparent", filter: "invert(1)" }}
-                src="/mc/images/cat-pixel.png"
+                src="/mc/images/Coin.gif"
               />
               <div className="md:hidden">
                 <img
@@ -100,10 +141,10 @@ export function MushroomShell({ children }: { children: React.ReactNode }) {
                   }}
                 />
               </div>
-              <span className="font-upheavtt text-2xl text-white hidden md:block">meow?</span>
+              <span className="font-upheavtt text-2xl text-white hidden md:block">Coin?</span>
 
               {/* slash */}
-              <div className={"absolute inset-0 flex items-center pointer-events-none " + (meowOff ? "" : "hidden")}>
+              <div className={"absolute inset-0 flex items-center pointer-events-none " + (soundMuted ? "" : "hidden")}>
                 <div className="w-full h-[2px] md:h-[3px] bg-red-600/80 rotate-[-15deg] shadow-[0_0_8px_rgba(220,38,38,0.5)]" />
               </div>
             </div>
@@ -124,12 +165,12 @@ export function MushroomShell({ children }: { children: React.ReactNode }) {
 
           <div className="w-full flex flex-col items-center">
             <Link
-              className="relative text-4xl font-bold text-white z-50 font-upheavtt hover:text-gray-300 transition-colors duration-300 px-6 py-2"
+              className="relative -top-5 text-6xl font-bold text-white z-100 font-upheavtt hover:text-gray-300 transition-colors duration-300 px-6 py-6"
               href="/"
             >
-              <span className="relative z-10 mr-2 inline-block">
+              <span className="logo-track relative z-10 mr-2">
                 Nutzh
-                <img alt="Nyan Cat" loading="lazy" width={70} height={20} decoding="async" className="animate-cat" style={{ color: "transparent" }} src="/mc/images/nyancat.gif" />
+                <img alt="2D Mario" loading="lazy" width={100} height={100} decoding="async" className="animate-cat" style={{ color: "transparent" }} src="/mc/images/2d-mario-running.gif" />
               </span>
             </Link>
           </div>
@@ -185,3 +226,7 @@ export function MushroomShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
+
+

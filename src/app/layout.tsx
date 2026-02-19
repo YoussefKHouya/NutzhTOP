@@ -23,8 +23,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="__variable_1e4310 __variable_5899e0 __variable_1a1e6c __variable_63a070 __variable_09d22a">
       <head>
-        <link rel="stylesheet" href="/mc/mushroom.css" />
-        <link rel="stylesheet" href="/mc/mushroom-post.css" />
+        <link rel="stylesheet" href="/mc/theme.css" />
+        <link rel="stylesheet" href="/mc/theme-post.css" />
       </head>
       <body className="antialiased flex flex-col min-h-screen">
         <PinnedCodeProvider>

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { MushroomShell } from "@/components/MushroomShell";
+import { SiteShell } from "@/components/SiteShell";
 import { MDXContent } from "@/components/MDXContent";
 import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { PizzaWidget } from "@/components/PizzaWidget";
@@ -30,7 +30,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     }
 
     return (
-      <MushroomShell>
+      <SiteShell>
         <main className="flex-grow">
           <div className="max-w-4xl mx-auto">
             <article className="article-content">
@@ -120,7 +120,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                       <img 
                         alt={related.meta.title} 
                         className="rounded-t-xl w-full object-cover h-48 transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]" 
-                        src={related.meta.cover ?? '/mc/images/tokyo.jpg'} 
+                        src={related.meta.cover ?? '/mc/images/batman.jpg'} 
                       />
                     </div>
                     <div className="p-4 flex flex-col flex-grow">
@@ -153,9 +153,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
           </div>
         </main>
         <ScrollTopButton />
-      </MushroomShell>
+      </SiteShell>
     );
   } catch {
     return notFound();
   }
 }
+

@@ -42,14 +42,14 @@ export function LoaderOverlay() {
       <div className="transition-opacity duration-1000">
         <div className="relative text-8xl font-bold text-white hover:text-gray-300 transition-colors duration-300 px-6 py-2 flex flex-col items-center sm:text-6xl">
           <img
-            alt="Party Cat"
+            alt="Dog"
             loading="lazy"
             width={200}
             height={200}
             decoding="async"
-            className="sm:w-48 sm:h-48 w-32 h-32"
+            className="sm:w-48 sm:h-48 w-32 h-32 rounded-full object-cover"
             style={{ color: "transparent" }}
-            src="/mc/images/partycat.webp"
+            src="/mc/images/dog.gif"
           />
           <span className="relative z-10 font-upheavtt sm:text-4xl text-3xl" id="mc_loader_pct">
             {pct}%
@@ -59,3 +59,7 @@ export function LoaderOverlay() {
     </div>
   );
 }
+
+
+
+

