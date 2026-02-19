@@ -62,8 +62,16 @@ export function CodeBlock({ code, lang, className }: { code: string; lang?: stri
       </div>
 
       {/* Body */}
-      <pre className={(codeClassName || "") + " !m-0 rounded-none border-0"}>
-        <code className={codeClassName}>{code}</code>
+      <pre
+        className={(codeClassName || "") + " !m-0 rounded-none border-0 overflow-x-auto"}
+        style={{ whiteSpace: "pre", wordBreak: "normal", overflowWrap: "normal" }}
+      >
+        <code
+          className={codeClassName}
+          style={{ whiteSpace: "pre", wordBreak: "normal", overflowWrap: "normal", display: "block" }}
+        >
+          {code}
+        </code>
       </pre>
     </div>
   );

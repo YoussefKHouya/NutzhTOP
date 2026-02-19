@@ -1,0 +1,101 @@
+---
+title: Ximai
+date: '2025-08-01'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - HACKmyVM
+  - LINUX
+  - MEDIUM
+cover: /mc/uploads/2025/08/ximai-1.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hello! It’s been a while since my last writeup but as always, we’re continuing with HackMyVM machines. This time, we’re tackling a **medium-difficulty box named "Ximai"**. Let’s jump right in.
+
+# Recon
+
+We’ll start with some basic reconnaissance using **Nmap** to identify open ports on the target machine:
+
+The scan revealed the following open ports: **22**, **60**, **3306**, and **8000**.
+
+- **Port 22**: Likely SSH
+- **Port 3306**: Indicates a MySQL database might be exposed
+- **Port 8000**: Web service
+- **Port 60** : No idea
+
+After checking out **port 8000**, I discovered it was running **WordPress**. I initially ran **wpscan** to check for known vulnerabilities, but it didn’t return anything useful on the first attempt.
+
+Next, I visited the default site hosted on **port 80**, which turned out to be the default **Apache page**.
+
+# Directory
+
+It's common for some creators to hide directories behind this kind of placeholder, so I decided to run **Gobuster** to enumerate potential hidden directories.
+
+While exploring the hidden directories, I discovered two interesting files: **`info.php`** and **`reminder.php`**.
+
+The `info.php` page displayed the typical **PHP info page**, which could potentially leak server configuration details (useful for later exploitation).
+
+The `reminder.php` page contained a **cat image**, but the image path seemed unusual:
+
+```text
+
+```
+
+[![](https://nutzh.top/wp-content/uploads/2025/08/ximai.png)](https://nutzh.top/wp-content/uploads/2025/08/ximai.png)Now we found another **accessible hidden directory**, which might lead us further toward exploitation.
+
+## Wordpress Vulnerability (CVE 2025-2011)
+
+After some light **fuzzing** on the previously discovered directory, I managed to uncover **credentials for a user named `jimmy`**. However, the challenge now was figuring out how to **leverage or read those credentials** effectively.
+
+I decided to revisit the **WordPress instance** running on port 8000 and perform another scan using **WPScan** — this time including the `--api-token` (which you can get from the [official WPScan website](https://wpscan.com/)) to enable latest vulnerability detection.
+
+After researching the CVE found by WPScan, I came across a GitHub repository containing a proof of concept (PoC):
+
+Instead of using the full exploit script, I extracted just the **payload** and adapted it for use directly through **MySQL**, simplifying the process and tailoring it to the context of this machine.
+
+```text
+sqlmap -u "http://wordpress.local:8000/wp-admin/admin-ajax.php?s=test*&perpage=20&page=1&orderBy=source_id&dateEnd=&dateStart=&order=DESC&sources=&action=depicter-lead-index"  --file-read /etc/jimmy.txt
+```
+
+After successfully reading the `/etc/jimmy.txt` file, I obtained the **credentials for the user `jimmy`** , giving us a potential foothold on the system.
+
+# Initial access
+
+authenticate as User jimmy
+
+After logging in as **jimmy**, I found myself in a **restricted shell environment**. This type of shell limits the commands a user can execute, preventing typical system interaction.  
+I began running some **basic and random commands** (such as `ls`, `cd`, `cat`, etc.) to observe which ones were allowed and which were blocked.
+
+While testing commands within the **restricted shell**, I discovered that only a few basic commands were allowed — specifically, `cd` and `echo`.
+
+Since `echo` was one of the few available commands, I used it to inspect the **`PATH` environment variable**, which defines the directories the shell searches for executable commands.
+
+After checking the `PATH` variable using `echo $PATH`, I noticed that it was **broken or misconfigured** — meaning standard commands couldn’t be executed unless full paths were provided. This gave us two possible paths forward:
+
+first one is :
+
+we can regain access to basic system commands:
+
+or command execution via absolute paths:.
+
+## Priv Escalation
+
+the first thing we can do is to read wp-config.php file by :
+
+Inside the `wp-config.php` file, I found a second set of credentials belonging to a user named **`adminer`**. This suggests that the user might have a local account on the system or that the credentials could be reused elsewhere.
+
+we authenticate **as `adminer`** .
+
+I checked **sudo privileges** to see if the user had any elevated permissions:
+
+no matter how many variations I tried, the **output remained the same**, and I couldn't locate the flag.
+
+While continuing enumeration, I discovered that the **`grep` binary was writable** by the current user — an unusual and critical misconfiguration. To exploit this, I simply replaced its content with a Bash shell:
+
+**Fun Fact:**I actually tried to skip the whole `jimmy` user process by directly exploiting the SQL injection in the WordPress plugin to read the `wp-config.php` file… but the creator was **Tricky too** for that!
+
+**ROoteD**

@@ -1,0 +1,75 @@
+---
+title: Jan
+date: '2025-02-19'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - CTF
+  - Easy
+  - LINUX
+cover: /mc/uploads/2025/02/hackmyvm-logo-3.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+**In this writeup, we’ll explore the steps to hack the Jan machine on [HACKmyVM](https://hackmyvm.eu/). We’ll cover enumeration, vulnerability discovery,exploitation, and privilege escalation. Let’s dive in!**
+
+## enumerate with Nmap 
+
+```bash
+$ nmap -sV 192.168.56.121
+```
+**so the open ports:**
+
+- **Port 22/tcp**: OpenSSH 9.9 (SSH service)
+- **Port 8080/tcp**: HTTP service (mislabeled as `http-proxy` by Nmap)
+
+The HTTP service on port 8080 responds to requests with a message: *"Welcome to our Public Server. Maybe Internal."* The unrecognized service fingerprint suggests a custom implementation.
+
+## Web Directory Enumeration
+
+Using **dirsearch**, we discover sensitive endpoints:
+
+`/robots.txt` (HTTP 200): Reveals two endpoints:
+
+- /redirect
+- /credz
+
+## Exploiting the `/redirect` Endpoint
+
+The `/redirect` endpoint appears vulnerable to **path traversal** or **parameter tampering**. By manipulating the `url` parameter, we access credentials:
+
+This reveals SSH credentials:
+
+- **Username**: `ssh`
+- **Password**: `#EazyLOL`
+
+## Privelage escalation
+
+### Identifying Misconfigurations
+
+- Writable system files: `/etc/ssh/sshd_config` and `/etc/ssh/ssh_config`
+- Sudo privileges: User `ssh` can restart the SSH service as root without a password:  
+    **(root) NOPASSWD: /sbin/service sshd restart**
+
+### Modifying SSH Configuration
+
+After researching the relationship between the SSH daemon (sshd) and its configuration files (sshd\_config and ssh\_config), we learned that modifying these files allows us to control how SSH operates on the machine. By altering the configurations, we can enable specific behaviors, such as allowing root login or disabling strict permission checks, which can be exploited to gain unauthorized access. This understanding is key to manipulating the SSH service to our advantage.
+
+before generate a ssh key we need to create a folder to put these ssh key and the authorized\_key so lets start
+
+### **Generate an SSH key pair** on the attacker machine:
+
+Copied public key to target machine:
+
+**Edit `/etc/ssh/sshd_config`** to enable root login and disable strict mode checks:
+
+Commented out banner reference:
+
+Applied configuration changes:
+
+Authenticated using private key:
+
+**GG**

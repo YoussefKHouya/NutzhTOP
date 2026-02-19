@@ -173,17 +173,6 @@ export function MushroomShell({ children }: { children: React.ReactNode }) {
                 Resources
               </Link>
             </li>
-            <li className="flex justify-center">
-              <span className="block w-40 h-px bg-white/20" />
-            </li>
-            <li className="flex flex-col items-center gap-1">
-              <a
-                className="inline-flex items-center justify-center gap-2 px-2.5 py-1 rounded-full bg-[#5865F2] text-white text-lg md:text-xl font-normal shadow-md border border-[#7b84ff] hover:bg-[#4f5be0] transition-colors"
-                href="/feed"
-              >
-                <span>RSS Feed</span>
-              </a>
-            </li>
           </ul>
         </div>
       </div>

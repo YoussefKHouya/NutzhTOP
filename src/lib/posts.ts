@@ -61,9 +61,9 @@ export function getPostBySlug(slug: string[]): Post {
   const meta: PostMeta = {
     title: (data.title as string) ?? slug.at(-1) ?? "Untitled",
     date: (data.date as string) ?? new Date().toISOString(),
-    description: data.description as string | undefined,
+    description: (data.description as string) ?? (data.excerpt as string) ?? undefined,
     tags: (data.tags as string[] | undefined) ?? [],
-    cover: data.cover as string | undefined,
+    cover: (data.cover as string | undefined) ?? (data.image as string | undefined),
     difficulty: (data.difficulty as string | undefined)?.toLowerCase(),
     type: ((data.type as string | undefined) ?? "writeup").toLowerCase(),
     platform: normalizePlatform(data.platform as string | undefined, slug),
@@ -75,6 +75,12 @@ export function getPostBySlug(slug: string[]): Post {
 export function getAllPosts(): Post[] {
   const slugs = getAllPostSlugs();
   const posts = slugs.map((s) => getPostBySlug(s));
-  posts.sort((a, b) => (a.meta.date < b.meta.date ? 1 : -1));
+  posts.sort((a, b) => {
+    const ta = Date.parse(a.meta.date || "");
+    const tb = Date.parse(b.meta.date || "");
+    const va = Number.isNaN(ta) ? 0 : ta;
+    const vb = Number.isNaN(tb) ? 0 : tb;
+    return vb - va;
+  });
   return posts;
 }

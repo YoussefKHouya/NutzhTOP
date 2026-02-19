@@ -1,0 +1,87 @@
+---
+title: Motto
+date: '2025-10-05'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - CTF
+  - Easy
+  - LINUX
+  - PAYLOAD
+  - SQLi
+cover: /mc/uploads/2025/10/motto.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hey everyone! Let's dive into a new machine called **Motto** on HackMyVM. As always, we'll start with reconnaissance.
+
+## Recon
+
+First, I ran a full port scan with service detection using Nmap.
+
+The scan revealed three open ports:
+
+- **Port 22:** SSH
+- **Port 80:** HTTP (Apache 2.4.62)
+- **Port 9090:** HTTP (Golang web server)
+
+I started by checking out the website on port 80. It was just a simple clickable game box. I tried fuzzing for hidden directories but didn't find anything useful.
+
+[![index.php_of_web_site](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-133827.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-133827.png)Next, I moved to the service on port **9090**. It looked like an application that interacted with a database, letting you view "Mottos" for different users (用户名). You first need to register a new user (I used `user1`) to interact with it.
+
+I found a potential vulnerability on the `/myinfo` endpoint. When you change your nickname (昵称) to an existing user like `ta0` or `sunset`, it displays their motto. This looked like a **SQL Injection**.
+
+[![output_of_changing_nickname](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-134915-1024x275.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-134915.png)/
+
+## exploiting the SQLi
+
+My first step was to figure out the number of columns using `ORDER BY`. I found that `ORDER BY 3` worked, but `ORDER BY 4` returned nothing, confirming **3 columns**.
+
+[![sql_injection_to_know_the_columns](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-141503.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-141503.png)Next, I needed to determine the data types. A payload with a string failed, but one with a number worked, showing that the first column was likely an integer.  
+payload: **`' Union select 1,NULL,NULL; #`**
+
+Now, I could start extracting data. I began by listing all tables in the database.`' Union select 1,NULL,table_name FROM information_schema.tables; #`  
+At the end of the output, I spotted an interesting table: `register_infos`.   
+I then listed the columns within this table.  
+**`'UNION SELECT 1,NULL,column_name FROM information_schema.columns WHERE table_schema = database() AND table_name = 'register_infos'; #`**
+
+This revealed `username` and `password` columns. Time to dump the credentials!  
+**Payload to dump credentials:**  
+**`'UNION SELECT 1,username,password from register_infos;#`**
+
+| 用户名 | Motto |
+|---|---|
+| admin is no use | admin is no use |
+| RedBean | cannotforgetyou |
+| user1 | user11 |
+
+so we got the password of the admin and the user **RedBean** so we gonna try to ssh with the User RedBean
+
+## **Initial Access**
+
+As a quick check, I also confirmed I could read local files, meaning this SQLi had file-read capabilities.**` 'UNION SELECT 1,NULL,load_file('/etc/passwd');#`**
+
+[![/etc/passwd_motto](https://nutzh.top/wp-content/uploads/2025/10/etcpasswd0.png)](https://nutzh.top/wp-content/uploads/2025/10/etcpasswd0.png)so we have the user and the password so we can authenticate as the user redbean
+
+Success! I was in as the `redbean` user.
+
+## PrivEsc
+
+In the user's home directory, I found a hidden folder `.backup` containing two files:
+
+Let's look at the C program, `run_newsh.c`:
+
+This program is designed to run as root (it calls `setuid(0)`). It executes the script `/opt/new.sh` with the argument we provide.  
+Now, let's check the script `new.sh`. The most important part is this block:
+
+so here we need to make the script execute **chmod +s /bin/bash**
+
+The vulnerability here is that the second check uses quotes `"$1"`, while the third check does not `$1`. If we pass an argument that isn't *exactly* `"flag"` but becomes `"flag"` when the quotes are removed, we can bypass the second check and trigger the third.  
+The trick is to add a space after the word `flag`. The second check sees `"flag "` (with a space) and does not trigger an exit. The third check, without quotes, sees just `flag`
+
+And that's it! We've successfully rooted the machine.
+
+**ROOTED**

@@ -1,0 +1,80 @@
+---
+title: Console
+date: '2025-06-30'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - LINUX
+  - MEDIUM
+cover: /mc/uploads/2025/06/console.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hello today we gonna start with the last machine in HackmyVm "Console"
+
+## Initial Recon
+
+so we gonna start with Recon nmap
+
+We have ports 22, 80, and 443 open. We're going to start by examining port 80 and trying to enumerate directories, but unfortunately, we didn't find anything. So, we'll move on to port 443. Before accessing the website, we need to add CN=hacker.maze-sec.hmv to the /etc/hosts file.
+
+## web exploit
+
+So I tried to enumerate directories and interact with the website, but there was literally nothing—I couldn't understand what was going on. Eventually, I gave up and decided to focus on the JavaScript files running on the site, hoping to find a URL or link. I used the developer tools, and while reading through the files, I found a function in Hacker.js.
+
+This script opens up a new direction. It concatenates parts of strings to form a filename: supercool.php, and uses a parameter named cmd. When triggered, it sends a command to this PHP file and displays the output in an alert box.
+
+We decided to test the discovered endpoint using cURL to see if command execution is possible.
+
+Since this behaves like a web shell, our next step is to set up a reverse shell to gain interactive access to the system.
+
+The target machine does not have nc (netcat) installed, so we'll use Python 3 to spawn a reverse shell
+
+## foothold
+
+Now, execute the following one-liner on the target system via the web shell:
+
+Make sure you have a listener running before executing this command.
+
+I tried multiple times to upload and execute linpeas.sh for enumerationm but unfortunately it doesnt work ,Despite that, I got lucky i found a file named .viminfo that has the credentials of the user Welcome
+
+read it and you gonna find the credentials
+
+so after authenticate as the User "welcome" we should upload linpeas.sh so i found a way i can upload it
+
+so from the host you need to execute :$ `sudo nc -q 5 -lvnp 80 
+
+Since FastFetch can execute commands through the command module in its configuration JSON file, we can try to abuse this feature by checking if it allows us to overwrite or create files on the system.
+
+so i tried to create this json file with echo so the command gonna be like this :
+
+To exploit this vulnerability, we are going to create a new user with root privileges and assign it a weak password.
+
+This command creates a user named Nutzh with the weak password 123, and it appends the user to the /etc/passwd file.
+
+to create a weak password you just need to use openssl :
+
+And copy the output into the password (x) field in /etc/passwd, so you can authenticate using the user you just created.
+
+ the final step is to use the configuration file we just created.
+
+to verify if the User is exist or not :
+
+we gonna authenticate as Nutzh
+
+root@Console:/home/qaq#
+
+**GG you are the root**
+
+## alternative way
+
+You can also grant the user qaq or Welcome full permissions by modifying the /etc/sudoers file using the following command:
+
+execute the binary with the new config.json
+
+and the output should be like this .
+
+**GG**

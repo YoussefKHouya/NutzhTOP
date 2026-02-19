@@ -1,0 +1,64 @@
+---
+title: ROT13
+date: '2025-08-10'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Caesar
+  - Easy
+  - FTP
+  - LINUX
+cover: /mc/uploads/2025/08/hackmyvm-logo-3.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hello today we gonna try to pwn new machine ROT13 in HackmyVM , so lets start .
+
+## Recon
+
+we gonna collect some information about the target machine with
+
+We got ports 21 ,22 and 80 open we cant authenticate with FTP as anomymous and we do not have a credentials so i decide to to try with website ,
+
+## Fuzz
+
+first of all we gonna try to discover the hidden directories and see how the website works .
+
+We found some files like config.txt , readme.txt , and welcome.txt , we found that the content of config.txt and readme.txt and welcome.txt is the same as when visiting the /?theme=jrypbzr.gkg , ?theme=pbasvt.gkg , ... , here we can see that txt is encrypted by Caesar , it rotate alphabet t to g so its ROT13 , so when rotating **welcome** it become **jrypbzr** , so i tried to see if i can read another files (Path traversal) , it works but it doesnt lead to something we can exploit after , so unfrothtfool , we can encode **/etc/passwd** to **/rgp/cnffjq**
+
+here we successfely read the **/etc/passwd** and we found 2 users but i tried to bruteforce but nothing works , so i return to FTP and its version pyftpdlib , i tried to see if we can exploit .  
+remember the /logs directory , i think we might find something there , log of ftp so i tried to Fuzz too many time this directory with different dictionary , and finaly i found a log file .
+
+we got the ftp\_server log , reading the log file we can see that there is a User named "ADMIN"
+
+but the problem is we dont know the password so we need to bruteforce it .   
+and easily we found it
+
+## Root Access By FTP 
+
+so the password is 12345 . we can authenticate easily with FTP now , to exploit the FTP we found 2 Files ftp\_server.py and rev.sh
+
+after reading the ftp\_server python file , it is the one that run the ftp service so we can overwrite the file and create a script **"[revshell](https://www.revshells.com/)"** that connect with us to gain a root shell.
+
+we gonna upload the new ftp\_server.py and reboot the machine .
+
+and we gonna listen to the port 4444 with nc and after the machine turn on , it will automaticly execute this script (its just run this script instead of run the ftp service if we do a recon again we are not gonna find the port 21 open )
+
+**ROOTED**
+
+## IT May Help You :
+
+if we back to log file we can see there is a php script injected there .
+
+we can see the script to shows up the php info page , but we need a page php to read this script and execute it , we can see with brutefrocing we find index.php page , before that we should encrypt **logs/ftp\_server.log** , to **ybtf/sgc\_freire.ybt** and now we can call the index.php and execute injected script
+
+[![](https://nutzh.top/wp-content/uploads/2025/08/Screenshot-2025-08-10-231448-1024x377.png)](https://nutzh.top/wp-content/uploads/2025/08/Screenshot-2025-08-10-231448.png)after that we can know that we can get a reverse shell with that by just injecting a php rev shell in the Username value when connecting to FTP
+
+even if it failed , the goal is injecting the php code in logs , and it got injected , so to triggered we can open **http://192.168.138.113/index.php?theme=ybtf%2Fsgc\_freire.ybt**
+
+and u gonna got the shell after that
+
+The problem with this was that it couldn’t lead us to anything; I found nothing that could help us escalate privileges. However, we did learn about **log poisoning**, so now we know how to get a shell through logs, pretty cool stuff.

