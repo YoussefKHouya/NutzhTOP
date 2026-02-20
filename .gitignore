@@ -42,3 +42,4 @@ next-env.d.ts
 scripts/clean-writeups.mjs
 scripts/fix-mdx-fences.mjs
 wp-content/
+.trash/
