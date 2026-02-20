@@ -24,6 +24,7 @@ export default function MyWriteupsPage() {
     <SiteShell>
       <main className="flex-grow max-w-6xl mx-auto w-full px-4 py-10 md:py-14">
         <SectionTitle title="MY WRITEUPS" />
+        <p className="text-center text-zinc-300 text-lg md:text-xl font-semibold mb-6">{posts.length} writeup{posts.length === 1 ? "" : "s"}</p>
 
         <div className="space-y-4 md:space-y-6">
           {posts.map((p) => (

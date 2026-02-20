@@ -5,7 +5,8 @@ import Link from "next/link";
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [soundMuted, setSoundMuted] = useState(false);
+  const [soundMuted, setSoundMuted] = useState(true);
+  const [soundPrefReady, setSoundPrefReady] = useState(false);
   const clickFxRef = useRef<HTMLAudioElement | null>(null);
   const SOUND_PREF_KEY = "site.soundMuted";
 
@@ -65,19 +66,23 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(SOUND_PREF_KEY) ?? window.localStorage.getItem("mushroom.soundMuted");
-      if (saved === "1") setSoundMuted(true);
+      if (saved === "0") setSoundMuted(false);
+      else setSoundMuted(true);
     } catch {
       // ignore storage issues
+    } finally {
+      setSoundPrefReady(true);
     }
   }, []);
 
   useEffect(() => {
+    if (!soundPrefReady) return;
     try {
       window.localStorage.setItem(SOUND_PREF_KEY, soundMuted ? "1" : "0");
     } catch {
       // ignore storage issues
     }
-  }, [soundMuted]);
+  }, [soundMuted, soundPrefReady]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
