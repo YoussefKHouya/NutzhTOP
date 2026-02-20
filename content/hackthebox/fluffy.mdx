@@ -83,7 +83,7 @@ getting file \Upgrade_Notice.pdf of size 169963 as Upgrade_Notice.pdf (401.9 Kil
 ```
 The PDF file contains information about several CVEs, so we're going to look into them.
 
-[![upgrade_update.pdf file on SMB IT share on Fluffy](https://nutzh.top/wp-content/uploads/2025/05/upgrade_notice.png)](https://nutzh.top/wp-content/uploads/2025/05/upgrade_notice.png)### CVE-2025-24071
+[![upgrade_update.pdf file on SMB IT share on Fluffy](/mdx_images/2025/05/upgrade_notice.png)](/mdx_images/2025/05/upgrade_notice.png)### CVE-2025-24071
 
 After researching these **CVEs**, I found a **GitHub** repository that exploits the second one, **CVE-2025-24071**. You can find it here: [https://github.com/ThemeHackers/CVE-2025-24071 ](https://github.com/ThemeHackers/CVE-2025-24071).  
 So, we're going to download the `exploit.py` file from the repository .
@@ -161,7 +161,7 @@ LDAP        10.10.11.69     389    DC01             Compressing output into /hom
 ```
 So, we found that the user `p.agila` is a member of the '**SERVICE ACCOUNT MANAGERS**' group, which has **permissions** over the '**SERVICE ACCOUNT**' group.
 
-[![](https://nutzh.top/wp-content/uploads/2025/05/p.agila-permission.png)](https://nutzh.top/wp-content/uploads/2025/05/p.agila-permission.png)We can add the user `p.agila` to the 'SERVICE ACCOUNT' group using BloodyAD
+[![](/mdx_images/2025/05/p.agila-permission.png)](/mdx_images/2025/05/p.agila-permission.png)We can add the user `p.agila` to the 'SERVICE ACCOUNT' group using BloodyAD
 
 ```bash
 bloodyAD --host 10.10.11.69 -d fluffy.htb -u p.agila -p 'prometheusx-303' add groupMember 'Service Accounts' p.agila

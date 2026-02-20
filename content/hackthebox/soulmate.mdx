@@ -69,7 +69,7 @@ Cookie: CrushAuth=1111111111_111111111111111111111111111111111
 Authorization: AWS4-HMAC-SHA256 Credential=crushadmin
 ```
 
-![abusing the CVE and adding the headers to ftp soulmate website](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-14-014602-1024x552.png)
+![abusing the CVE and adding the headers to ftp soulmate website](/mdx_images/2026/02/Screenshot-2026-02-14-014602-1024x552.png)
 
 after that i tried to create a user with the POC we found
 
@@ -119,7 +119,7 @@ www-data@soulmate:/tmp$
 
 after that i run linpeas and pspy64 to see the procesuss running on the machine , and i found that there is a binary named erlang , so after asking Chatgpt and looking around i found a CVE for this binary it works but the problem is just keeping doing the same thing even with some modification [https://github.com/ProDefense/CVE-2025-32433/blob/main/CVE-2025-32433.py](https://github.com/ProDefense/CVE-2025-32433/blob/main/CVE-2025-32433.py)
 
-![](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-14-033322-1-1024x171.png)
+![](/mdx_images/2026/02/Screenshot-2026-02-14-033322-1-1024x171.png)
 
 so i tried to do it manually and read the files inside the machine so i start with the processus start.script and luckly i found the password of the user ben
 

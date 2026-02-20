@@ -111,7 +111,7 @@ So after uploading the necessary file, we discovered that:
 1\) The user 'levi.james' belongs to the HR group.  
 2\) The HR group possesses GenericWrite permissions over the Developers Group.
 
-[![HR group permission over DEV](https://nutzh.top/wp-content/uploads/2025/05/levijames.png)](https://nutzh.top/wp-content/uploads/2025/05/levijames.png)We are going to add james to the developer group with bloodyAD :
+[![HR group permission over DEV](/mdx_images/2025/05/levijames.png)](/mdx_images/2025/05/levijames.png)We are going to add james to the developer group with bloodyAD :
 
 ```bash
 bloodyAD -d pupy.htb --host 10.10.11.70 -u 'levi.james' -p 'KingofAkron2025!' add groupMember 'DEVELOPERS' levi.james
@@ -177,7 +177,7 @@ We now have the password for `ant.edwards` and attempted to authenticate using `
 
 Returning to BloodHound, we noticed that `ant.edwards` has **GenericAll** permissions over the user `ADAM.Silver`. This means we can change `ADAM.Silver`’s password.
 
-[![ant.edwards permission over adam.silver](https://nutzh.top/wp-content/uploads/2025/05/AntPermission-1.png)](https://nutzh.top/wp-content/uploads/2025/05/AntPermission-1.png)using bloodyAD again we change successefuly the password of adam.silver
+[![ant.edwards permission over adam.silver](/mdx_images/2025/05/AntPermission-1.png)](/mdx_images/2025/05/AntPermission-1.png)using bloodyAD again we change successefuly the password of adam.silver
 
 ```bash
 bloodyAD --dc-ip 10.10.11.70 -d puppy.htb -u 'ant.edwards' -p 'Antman2025!' set password adam.silver 'Password123'
@@ -192,7 +192,7 @@ userAccountControl: ACCOUNTDISABLE; NORMAL_ACCOUNT
 ```
 or :
 
-[![adam.silver UAC](https://nutzh.top/wp-content/uploads/2025/05/admin.silver-1.png)](https://nutzh.top/wp-content/uploads/2025/05/admin.silver-1.png)As shown in BloodHound’s node information section, the **Account Enabled** flag is set to false. This corresponds to the `ACCOUNTDISABLE` flag being active, which is why we cannot authenticate as `ADAM.Silver`. The userAccountControl (UAC) value is currently set to `514`, which means **Normal Account (512)** plus **ACCOUNTDISABLE (2)**. To enable the account, we need to change the UAC value from `514` to `512`.We can accomplish this by using `ldapmodify` to update the userAccountControl attribute for `ADAM.Silver`.
+[![adam.silver UAC](/mdx_images/2025/05/admin.silver-1.png)](/mdx_images/2025/05/admin.silver-1.png)As shown in BloodHound’s node information section, the **Account Enabled** flag is set to false. This corresponds to the `ACCOUNTDISABLE` flag being active, which is why we cannot authenticate as `ADAM.Silver`. The userAccountControl (UAC) value is currently set to `514`, which means **Normal Account (512)** plus **ACCOUNTDISABLE (2)**. To enable the account, we need to change the UAC value from `514` to `512`.We can accomplish this by using `ldapmodify` to update the userAccountControl attribute for `ADAM.Silver`.
 
 create a file name "enable" for example and write this :
 
@@ -356,7 +356,7 @@ Unknown     : XXXXXXXXXXXXXXX2025!
 
 Back in BloodHound, we see that `STEPH.COOPER_ADM` has **DCSync** rights over the `PUPPY.HTB` domain. We can abuse this to extract the NTLM hash using `secretdump.py`.
 
-[![stephcooper_adm bloodhound](https://nutzh.top/wp-content/uploads/2025/05/stephcooper_adm.png)](https://nutzh.top/wp-content/uploads/2025/05/stephcooper_adm.png)
+[![stephcooper_adm bloodhound](/mdx_images/2025/05/stephcooper_adm.png)](/mdx_images/2025/05/stephcooper_adm.png)
 ```bash
 impacket-secretsdump 'puppy/steph.cooper_adm:FivethChipOnItsWay2025!@puppy.htb'
 

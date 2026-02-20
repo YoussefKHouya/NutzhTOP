@@ -94,17 +94,17 @@ so i tried to understand and while looking around i found that there is a POC fo
 
 before following the poc we need to make sure that this version is vulnerable to this CVE or not so we gonna use burpsuite and this payload for this job
 
-![trying the CVE payload in pterodactyl machine](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-11-213702-1024x550.png)
+![trying the CVE payload in pterodactyl machine](/mdx_images/2026/02/Screenshot-2026-02-11-213702-1024x550.png)
 
 as we can see from this request , the version of the Panel is vulnerable so we gonna start following the poc and gain the RCE , i tried the same payload of the POC but it didnt work , so i try to figure out what is the problem by reviewing the phpinfo page , to make it work we need to add PEAR to the path , you can see the include_path in phpinfo
 
 so we gonna try first with a basic payload system('id') to make sure it works fine and after that we gonna build a webshell
 
-![inject id command in pterodactyl machine](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-11-230119.png)
+![inject id command in pterodactyl machine](/mdx_images/2026/02/Screenshot-2026-02-11-230119.png)
 
 after injecting the payload in a php file we gonna look for this file and try to access it
 
-![find the malicious php file we create in pterodactyl machine](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-11-230200.png)
+![find the malicious php file we create in pterodactyl machine](/mdx_images/2026/02/Screenshot-2026-02-11-230200.png)
 
 so we gonna build the webshell easily just change the `id` to `$_GET['cmd']` and we got the shell
 

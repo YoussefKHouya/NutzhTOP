@@ -77,7 +77,7 @@ To host the directory containing our crafted HTML file locally, we will use Pyth
 
 **We’ll use our local server's address (`http://$ATTACKER_IP:9000/index.html`) as the input to test how the converter handles external links.**
 
-[![pdf file generated ](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-24-032502.png)](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-24-032502.png)Cool, the 'Hi' shows up in the PDF! Let’s grab the file and run `exiftool` on it , maybe we can find out what tool was used to generate it.
+[![pdf file generated ](/mdx_images/2025/06/Capture-decran-2025-06-24-032502.png)](/mdx_images/2025/06/Capture-decran-2025-06-24-032502.png)Cool, the 'Hi' shows up in the PDF! Let’s grab the file and run `exiftool` on it , maybe we can find out what tool was used to generate it.
 
 `wget http://192.168.56.101/upload/972fd1dfdde144a417feddd6d3456e7d.pdf`
 
@@ -211,7 +211,7 @@ User eva may run the following commands on convert:
     (ALL : ALL) NOPASSWD: /usr/bin/python3 /home/eva/pdfgen.py *
 eva@convert:/var/www/html/dompdf/lib/fonts$ 
 ```
-As seen in the previous machine"[Uvalde](https://nutzh.top/hackmyvm/uvalde/)" . I think we gonna just change the script pdfgen.py to execute bash with library os
+As seen in the previous machine"[Uvalde](hackmyvm/uvalde/)" . I think we gonna just change the script pdfgen.py to execute bash with library os
 
 ## Priv Esc
 

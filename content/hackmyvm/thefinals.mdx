@@ -192,11 +192,11 @@ first we gonna start go to comment section and add a comment
 so we gonna use the first payload on the website case :
 
 ```bash
-http://a.b/">[![](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-05-231456.png)](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-05-231456.png)and submit the comment
+http://a.b/">[![](/mdx_images/2025/05/Screenshot-2025-05-05-231456.png)](/mdx_images/2025/05/Screenshot-2025-05-05-231456.png)and submit the comment
 
 after that , look for blog/usr/theme/default endpoint and you gonna add 404.php
 
-[![](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-06-015543-1024x514.png)](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-06-015543.png)## Gaining a Reverse Shell
+[![](/mdx_images/2025/05/Screenshot-2025-05-06-015543-1024x514.png)](/mdx_images/2025/05/Screenshot-2025-05-06-015543.png)## Gaining a Reverse Shell
 
 After confirming phpinfo output, we update the payload to spawn a reverse shell using Alpine Linux's default shell (`/bin/ash`):
 
@@ -369,7 +369,7 @@ thefinals:~$ sudo /sbin/secret
 ```bash
 for now we got 3 PTY
 
-[![](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-06-002610.png)](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-06-002610.png)To spawn an additional PTY, we can utilize one of the following commands:
+[![](/mdx_images/2025/05/Screenshot-2025-05-06-002610.png)](/mdx_images/2025/05/Screenshot-2025-05-06-002610.png)To spawn an additional PTY, we can utilize one of the following commands:
 
 ```
 ssh scotty@localhost 
@@ -379,7 +379,7 @@ or :
 ```
 python -c 'import pty;pty.spawn("/bin/ash")'
 ```bash
-[![](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-06-002814.png)](https://nutzh.top/wp-content/uploads/2025/05/Screenshot-2025-05-06-002814.png)After using these two commands, we can see that PTY 3 and 4 appear. Now, we're going to create a script to generate 90 PTY:
+[![](/mdx_images/2025/05/Screenshot-2025-05-06-002814.png)](/mdx_images/2025/05/Screenshot-2025-05-06-002814.png)After using these two commands, we can see that PTY 3 and 4 appear. Now, we're going to create a script to generate 90 PTY:
 
 ```
 for i in $(seq 1 90); do python -c 'import pty; pty.spawn("/bin/ash")' & done

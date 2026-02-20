@@ -73,7 +73,7 @@ Starting gobuster in directory enumeration mode
 ```
 so we got another index2.php
 
-[![from index2.php file](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-10-155108-1024x481.png)](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-10-155108.png)so looking inside the index2.php and moving around i found this url : http://&lt;personal-ip&gt;/auth-login.php , so its a login page i tried to brute force it with Hydra but it failed
+[![from index2.php file](/mdx_images/2025/06/Screenshot-2025-06-10-155108-1024x481.png)](/mdx_images/2025/06/Screenshot-2025-06-10-155108.png)so looking inside the index2.php and moving around i found this url : http://&lt;personal-ip&gt;/auth-login.php , so its a login page i tried to brute force it with Hydra but it failed
 
 ```bash
 ζ hydra -l nexus -P /usr/share/wordlists/rockyou.txt 192.168.138.104 http-post-form "/auth-login.php:username=^USER^&password=^PASS^:Invalid credentials"                        
@@ -144,7 +144,7 @@ User shelly may run the following commands on NexusLabCTF:
 ```
 we have another LD\_PRELOAD exploit again
 
-incase you want to see more of LD\_PRELOAD exploit : [TryHarder](https://nutzh.top/hackmyvm/tryharder/)
+incase you want to see more of LD\_PRELOAD exploit : [TryHarder](hackmyvm/tryharder/)
 
 so we gonna abuse it again with :
 

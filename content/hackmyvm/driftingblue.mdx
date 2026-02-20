@@ -65,7 +65,7 @@ we found many open ports. Notably, we found ports 80 and 443 with a self-signed 
 
 ## Enumerating
 
-The website on ports 80 and 443 is running the Eon (Eyes of Network) platform. After researching on GitHub and Google, I found a known SQL injection vulnerability that can allow an attacker to steal an admin user's session. However, after trying the public payload, we didn't get a session, so we need to try another approach. This is a great opportunity to practice SQLi techniques, it's a good one if you want to learn how see "[SQLi Practice](https://nutzh.top/hackmyvm/driftingblue/#header-id-5)". For now, let's focus on finding the right way in.
+The website on ports 80 and 443 is running the Eon (Eyes of Network) platform. After researching on GitHub and Google, I found a known SQL injection vulnerability that can allow an attacker to steal an admin user's session. However, after trying the public payload, we didn't get a session, so we need to try another approach. This is a great opportunity to practice SQLi techniques, it's a good one if you want to learn how see "[SQLi Practice](hackmyvm/driftingblue/#header-id-5)". For now, let's focus on finding the right way in.
 
 As we remembered, we also found port 66 hosting a **Python** HTTP server. We decided to fuzz it using **GoBuster**.
 
@@ -229,7 +229,7 @@ user.txt
 
 This section is great practice for SQL injection. As mentioned, we found a public payload targeting the `user_id` cookie. First, we need to determine the number of columns we are dealing with. For this, we use `ORDER BY NUM`, incrementing the number until we get an error.
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/Screenshot-2025-11-08-180456-1024x269.png)](https://nutzh.top/wp-content/uploads/2025/11/Screenshot-2025-11-08-180456.png)[![](https://nutzh.top/wp-content/uploads/2025/11/Screenshot-2025-11-08-180526-1024x263.png)](https://nutzh.top/wp-content/uploads/2025/11/Screenshot-2025-11-08-180526.png)here we found the number of columns so before that can we get the name of database
+[![](/mdx_images/2025/11/Screenshot-2025-11-08-180456-1024x269.png)](/mdx_images/2025/11/Screenshot-2025-11-08-180456.png)[![](/mdx_images/2025/11/Screenshot-2025-11-08-180526-1024x263.png)](/mdx_images/2025/11/Screenshot-2025-11-08-180526.png)here we found the number of columns so before that can we get the name of database
 
 ### Database name
 
@@ -239,7 +239,7 @@ After finding the number of columns, we can proceed to get the database name. Fi
 Cookie: user_id=1' union select if(length(database())=$8$,sleep(2),0) -- ;
 ```
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/Screenshot-2025-11-08-181203.png)](https://nutzh.top/wp-content/uploads/2025/11/Screenshot-2025-11-08-181203.png)The response was received after a 2-second delay, which means the length is 6
+[![](/mdx_images/2025/11/Screenshot-2025-11-08-181203.png)](/mdx_images/2025/11/Screenshot-2025-11-08-181203.png)The response was received after a 2-second delay, which means the length is 6
 
 Now we need to guess each character in the database name. For that, we use the `substring` function with this command:
 
@@ -247,7 +247,7 @@ Now we need to guess each character in the database name. For that, we use the `
 Cookie: user_id=1' union select if(substring(database(),$1$,1)='$char$',sleep(2),0) --;
 ```
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/databsename-1024x191.png)](https://nutzh.top/wp-content/uploads/2025/11/databsename.png)### extracting information with SQLmap
+[![](/mdx_images/2025/11/databsename-1024x191.png)](/mdx_images/2025/11/databsename.png)### extracting information with SQLmap
 
 We can use SQLmap to extract information about the tables in the database using this command:
 
@@ -277,18 +277,18 @@ For the third table, you increase the limit to `LIMIT 2,1`, and for the \*n\*th 
 
 Anyway, we will let SQLmap complete its job to see the results.
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/SQLmap-tables.png)](https://nutzh.top/wp-content/uploads/2025/11/SQLmap-tables.png)We can see a table named `users`. We can extract its data by adding the `-T` option to our SQLmap command.
+[![](/mdx_images/2025/11/SQLmap-tables.png)](/mdx_images/2025/11/SQLmap-tables.png)We can see a table named `users`. We can extract its data by adding the `-T` option to our SQLmap command.
 
 ```text
 ζ sqlmap -u "http://192.168.138.131" --cookie="user_id=1*" -D eonweb -T users --dump --batch
 ```
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/sqlmaptableusers.png)](https://nutzh.top/wp-content/uploads/2025/11/sqlmaptableusers.png)### extract the session of the admin as in the CVE-2020-9465
+[![](/mdx_images/2025/11/sqlmaptableusers.png)](/mdx_images/2025/11/sqlmaptableusers.png)### extract the session of the admin as in the CVE-2020-9465
 
 There is also another table named `sessions`, which likely handles the `session_id`. We can try to manually get the `session_id` for `user_id` =1, the admin.
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/sesssion-payload-1024x355.png)](https://nutzh.top/wp-content/uploads/2025/11/sesssion-payload.png)the results :
+[![](/mdx_images/2025/11/sesssion-payload-1024x355.png)](/mdx_images/2025/11/sesssion-payload.png)the results :
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/image-1024x188.png)](https://nutzh.top/wp-content/uploads/2025/11/image.png)we successfully obtained the admin session and also the MD5 hash of the admin's password, which SQLmap retrieved.
+[![](/mdx_images/2025/11/image-1024x188.png)](/mdx_images/2025/11/image.png)we successfully obtained the admin session and also the MD5 hash of the admin's password, which SQLmap retrieved.
 
-[![](https://nutzh.top/wp-content/uploads/2025/11/admin-password-1024x234.png)](https://nutzh.top/wp-content/uploads/2025/11/admin-password.png)
+[![](/mdx_images/2025/11/admin-password-1024x234.png)](/mdx_images/2025/11/admin-password.png)

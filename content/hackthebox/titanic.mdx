@@ -66,7 +66,7 @@ $curl "http://titanic.htb/download?ticket=x"
 ```
 The error indicates that the application is attempting to retrieve a file based on the `ticket` parameter, hinting at a potential Local File Inclusion (LFI) vulnerability.
 
-using my baby script for LFI [Local File Inclusion](https://nutzh.top/payload/local-file-inclusion/)
+using my baby script for LFI [Local File Inclusion](payload/local-file-inclusion/)
 
 ```bash
 ./exploit.sh   
@@ -138,7 +138,7 @@ Found: dev.titanic.htb Status: 200 [Size: 13982]
 ```
 The scan reveals `dev.titanic.htb`. Adding this to our `/etc/hosts` file allows us to access the subdomain, which hosts a Gitea instance—a self-hosted Git service.
 
-[![](https://nutzh.top/wp-content/uploads/2025/02/images.png)](https://nutzh.top/wp-content/uploads/2025/02/images.png)## Foothold
+[![](/mdx_images/2025/02/images.png)](/mdx_images/2025/02/images.png)## Foothold
 
 so i googled to find the path to the database we got it after many tries
 

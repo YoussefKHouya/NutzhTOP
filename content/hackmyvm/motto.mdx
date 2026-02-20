@@ -30,17 +30,17 @@ The scan revealed three open ports:
 
 I started by checking out the website on port 80. It was just a simple clickable game box. I tried fuzzing for hidden directories but didn't find anything useful.
 
-[![index.php_of_web_site](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-133827.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-133827.png)Next, I moved to the service on port **9090**. It looked like an application that interacted with a database, letting you view "Mottos" for different users (用户名). You first need to register a new user (I used `user1`) to interact with it.
+[![index.php_of_web_site](/mdx_images/2025/10/Screenshot-2025-10-05-133827.png)](/mdx_images/2025/10/Screenshot-2025-10-05-133827.png)Next, I moved to the service on port **9090**. It looked like an application that interacted with a database, letting you view "Mottos" for different users (用户名). You first need to register a new user (I used `user1`) to interact with it.
 
 I found a potential vulnerability on the `/myinfo` endpoint. When you change your nickname (昵称) to an existing user like `ta0` or `sunset`, it displays their motto. This looked like a **SQL Injection**.
 
-[![output_of_changing_nickname](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-134915-1024x275.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-134915.png)/
+[![output_of_changing_nickname](/mdx_images/2025/10/Screenshot-2025-10-05-134915-1024x275.png)](/mdx_images/2025/10/Screenshot-2025-10-05-134915.png)/
 
 ## exploiting the SQLi
 
 My first step was to figure out the number of columns using `ORDER BY`. I found that `ORDER BY 3` worked, but `ORDER BY 4` returned nothing, confirming **3 columns**.
 
-[![sql_injection_to_know_the_columns](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-141503.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-05-141503.png)Next, I needed to determine the data types. A payload with a string failed, but one with a number worked, showing that the first column was likely an integer.  
+[![sql_injection_to_know_the_columns](/mdx_images/2025/10/Screenshot-2025-10-05-141503.png)](/mdx_images/2025/10/Screenshot-2025-10-05-141503.png)Next, I needed to determine the data types. A payload with a string failed, but one with a number worked, showing that the first column was likely an integer.  
 payload: **`' Union select 1,NULL,NULL; #`**
 
 Now, I could start extracting data. I began by listing all tables in the database.`' Union select 1,NULL,table_name FROM information_schema.tables; #`  
@@ -64,7 +64,7 @@ so we got the password of the admin and the user **RedBean** so we gonna try to 
 
 As a quick check, I also confirmed I could read local files, meaning this SQLi had file-read capabilities.**` 'UNION SELECT 1,NULL,load_file('/etc/passwd');#`**
 
-[![/etc/passwd_motto](https://nutzh.top/wp-content/uploads/2025/10/etcpasswd0.png)](https://nutzh.top/wp-content/uploads/2025/10/etcpasswd0.png)so we have the user and the password so we can authenticate as the user redbean
+[![/etc/passwd_motto](/mdx_images/2025/10/etcpasswd0.png)](/mdx_images/2025/10/etcpasswd0.png)so we have the user and the password so we can authenticate as the user redbean
 
 Success! I was in as the `redbean` user.
 

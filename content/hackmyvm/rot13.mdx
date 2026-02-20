@@ -55,7 +55,7 @@ if we back to log file we can see there is a php script injected there .
 
 we can see the script to shows up the php info page , but we need a page php to read this script and execute it , we can see with brutefrocing we find index.php page , before that we should encrypt **logs/ftp\_server.log** , to **ybtf/sgc\_freire.ybt** and now we can call the index.php and execute injected script
 
-[![](https://nutzh.top/wp-content/uploads/2025/08/Screenshot-2025-08-10-231448-1024x377.png)](https://nutzh.top/wp-content/uploads/2025/08/Screenshot-2025-08-10-231448.png)after that we can know that we can get a reverse shell with that by just injecting a php rev shell in the Username value when connecting to FTP
+[![](/mdx_images/2025/08/Screenshot-2025-08-10-231448-1024x377.png)](/mdx_images/2025/08/Screenshot-2025-08-10-231448.png)after that we can know that we can get a reverse shell with that by just injecting a php rev shell in the Username value when connecting to FTP
 
 even if it failed , the goal is injecting the php code in logs , and it got injected , so to triggered we can open **http://192.168.138.113/index.php?theme=ybtf%2Fsgc\_freire.ybt**
 

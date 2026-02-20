@@ -1,5 +1,6 @@
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { CodeBlock } from "@/components/CodeBlock";
+import { ClickToZoomImage } from "@/components/ClickToZoomImage";
 
 const components = {
   pre: ({ children, ...props }: { children?: React.ReactNode }) => {
@@ -20,7 +21,7 @@ const components = {
     // Fallback for non-code pre blocks
     return <pre {...props}>{children}</pre>;
   },
-  p: (props: React.HTMLAttributes<HTMLDivElement>) => <div className="p-tag-content" {...props} />,
+  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="p-tag-content" {...props} />,
   h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
     <h1 className="text-center font-fustat text-2xl sm:text-4xl leading-tight my-6" {...props} />
   ),
@@ -36,6 +37,9 @@ const components = {
     // Code block code (handled by pre component)
     return <code {...props} />;
   },
+  img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <ClickToZoomImage {...props} className={`${props.className ?? ""} cursor-zoom-in`.trim()} />
+  ),
 };
 
 export function MDXContent({ source }: { source: string }) {

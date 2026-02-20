@@ -83,7 +83,7 @@ Whoa! This code takes a user-supplied url and jams it straight into a shell comm
 ```bash
 neo4j.exceptions.CypherSyntaxError: ... "MATCH (u:USER) -[:SECRET]-> (h:SHA1) WHERE u.name = 'admin'' return h.value as hash"
 ```
-[![](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-03-183213-1024x319.png)](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-03-183213.png)A **Cypher injection** vulnerability tied to a Neo4j database? The machine’s name suddenly makes sense. We’re juggling two weaknesses now—a command injection in the .jar and a Cypher injection in the login. Time to forge our master key!
+[![](/mdx_images/2025/03/Screenshot-2025-03-03-183213-1024x319.png)](/mdx_images/2025/03/Screenshot-2025-03-03-183213.png)A **Cypher injection** vulnerability tied to a Neo4j database? The machine’s name suddenly makes sense. We’re juggling two weaknesses now—a command injection in the .jar and a Cypher injection in the login. Time to forge our master key!
 
 ## Exploitation
 
@@ -145,7 +145,7 @@ After trial and error with bbot options, we craft the winning command:
 ```bash
 graphasm@cypher:~$ sudo /usr/local/bin/bbot --custom-yara-rules /root/root.txt --debug
 ```
-[![](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-02-182340-1.png)](https://nutzh.top/wp-content/uploads/2025/03/Screenshot-2025-03-02-182340-1.png)SUMMARY:
+[![](/mdx_images/2025/03/Screenshot-2025-03-02-182340-1.png)](/mdx_images/2025/03/Screenshot-2025-03-02-182340-1.png)SUMMARY:
 
 - How to spot and exploit unsanitized shell commands.
 - The art of Cypher injection with Neo4j.

@@ -97,14 +97,14 @@ More details about this vulnerability can be found: here:
 
 To exploit this issue, the password reset request is intercepted and modified using Burp Suite, allowing the user’s role to be escalated to administrator.
 
-![Burpsuite repeater (forget password) in Cameleon CMS](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-01-221856-1024x629.png)
+![Burpsuite repeater (forget password) in Cameleon CMS](/mdx_images/2026/02/Screenshot-2026-02-01-221856-1024x629.png)
 
 As shown in the Burp Suite Repeater request, there is a repeating parameter pattern such as `password[password]`.
 Based on this structure, we attempted to follow the same convention and inject our own parameter: `password[role]=administrator`.`
 `However, changing the role to administrator did not grant administrative privileges.
 As a result, we modified the payload and attempted to set the role to admin instead of administrator.
 
-![the profile of the administrator in Cameleon CMS](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-01-222552-1024x528.png)
+![the profile of the administrator in Cameleon CMS](/mdx_images/2026/02/Screenshot-2026-02-01-222552-1024x528.png)
 
 After successfully exploiting the payload password[role]=admin, the privilege escalation worked and the user was granted administrative access.
 With administrator privileges, we proceeded to further enumerate the website, focusing on the configuration and settings sections. During this phase, we discovered something new: AWS S3 credentials, specifically an access key and a secret key.
@@ -168,7 +168,7 @@ With some basic programming knowledge (despite not being familiar with Ruby), I 
 By assembling this endpoint and controlling the file parameter, it appeared possible to exploit a Local File Inclusion (LFI) vulnerability.
 To validate this, I attempted to read the /etc/passwd file.
 
-![](https://nutzh.top/wp-content/uploads/2026/02/Screenshot-2026-02-01-232457-1024x566.png)
+![](/mdx_images/2026/02/Screenshot-2026-02-01-232457-1024x566.png)
 
 Using the LFI vulnerability, two system users were identified: **trivia **and **william**.
 SSH authentication using the recovered private key did not work for **william**, but was successful for **trivia**: (so why does william exist is he a regular user and that is it )

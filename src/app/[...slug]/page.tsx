@@ -4,6 +4,9 @@ import { SiteShell } from "@/components/SiteShell";
 import { MDXContent } from "@/components/MDXContent";
 import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { PizzaWidget } from "@/components/PizzaWidget";
+import { ClickToZoomImage } from "@/components/ClickToZoomImage";
+import { SectionTitle } from "@/components/SectionTitle";
+import { PostCard } from "@/components/PostCard";
 // floating widget disabled for parity cleanup
 import { getAllPostSlugs, getPostBySlug, getAllPosts } from "@/lib/posts";
 
@@ -70,7 +73,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                 {post.meta.cover ? (
                   <div className="mb-8 md:mb-12">
                     <div className="cover-image">
-                      <img alt={post.meta.title} className="w-full h-auto rounded-lg" src={post.meta.cover} />
+                      <ClickToZoomImage alt={post.meta.title} className="w-full h-auto rounded-lg" src={post.meta.cover} />
                     </div>
                   </div>
                 ) : null}
@@ -105,44 +108,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             {/* Related posts */}
             {related ? (
               <div className="mt-16 md:mt-24 px-4 md:px-6">
-                <h2 className="text-2xl md:text-3xl font-bold mb-8 md:mb-12 text-center opacity-40 flex items-center justify-center font-upheavtt">
-                  <span className="w-8 md:w-16 h-px bg-gray-400 mr-4"></span>
-                  You might also like
-                  <span className="w-8 md:w-16 h-px bg-gray-400 ml-4"></span>
-                </h2>
+                <SectionTitle title="You might also like" className="mb-8 md:mb-12" />
                 <div className="relative max-w-md mx-auto">
-                  <Link 
-                    className="bg-[#111111] rounded-xl flex flex-col shadow-lg border-2 border-[#111111] transition-all duration-300 hover:shadow-xl group" 
-                    href={`/${related.slug.join('/')}`}
-                  >
-                    <div className="relative w-full overflow-hidden rounded-t-xl">
-                      <div className="absolute inset-0 bg-gradient-to-b from-[#14141480] via-transparent to-[#141414] z-10 rounded-t-xl group-hover:opacity-80 transition-opacity duration-300"></div>
-                      <img 
-                        alt={related.meta.title} 
-                        className="rounded-t-xl w-full object-cover h-48 transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]" 
-                        src={related.meta.cover ?? '/mc/images/batman.jpg'} 
-                      />
-                    </div>
-                    <div className="p-4 flex flex-col flex-grow">
-                      <div className="flex justify-center mb-2">
-                        <p className="text-zinc-500 text-xs font-mono tracking-widest">
-                          {new Date(related.meta.date).toLocaleDateString('en-GB', {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "2-digit",
-                          })}
-                        </p>
-                      </div>
-                      <div className="mb-2">
-                        <h2 className="text-2xl font-semibold mb-1 transition-colors duration-300 text-gray-100 group-hover:text-white text-center">
-                          {related.meta.title}
-                        </h2>
-                      </div>
-                      <p className="text-gray-300 text-sm font-medium leading-relaxed text-center">
-                        {related.meta.description ?? ''}
-                      </p>
-                    </div>
-                  </Link>
+                  <PostCard post={related} />
                 </div>
               </div>
             ) : null}

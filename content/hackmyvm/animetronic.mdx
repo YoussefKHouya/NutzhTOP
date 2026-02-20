@@ -71,7 +71,7 @@ Starting gobuster in directory enumeration mode
 
 When I checked it out, there was another endpoint called `/new_employees` with an image file.
 
-[![](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-19-133554.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-19-133554.png)I used `exiftool` to check the image's metadata (that's the hidden information stored in image files), and found a Base64 encoded comment:
+[![](/mdx_images/2025/10/Screenshot-2025-10-19-133554.png)](/mdx_images/2025/10/Screenshot-2025-10-19-133554.png)I used `exiftool` to check the image's metadata (that's the hidden information stored in image files), and found a Base64 encoded comment:
 
 ```bash
 ζ exiftool new_employees.jpeg

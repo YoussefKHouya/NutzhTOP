@@ -89,7 +89,7 @@ j2                      [Status: 301, Size: 326, Words: 20, Lines: 10, Duration:
 :: Progress: [81643/81643] :: Job [1/1] :: 6250 req/sec :: Duration: [0:00:19] :: Errors: 0 ::
 ```
 
-[![the files exist on /scout/j2/docs](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-15-164736.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-15-164736.png)The complete path is `/scout/j2/docs`. Visiting this URL reveals many empty files named `z1` to `z999`. I wrote a Python script to find the non-empty file.
+[![the files exist on /scout/j2/docs](/mdx_images/2025/10/Screenshot-2025-10-15-164736.png)](/mdx_images/2025/10/Screenshot-2025-10-15-164736.png)The complete path is `/scout/j2/docs`. Visiting this URL reveals many empty files named `z1` to `z999`. I wrote a Python script to find the non-empty file.
 
 ```python
 import requests
@@ -133,7 +133,7 @@ shellfile.ods:john11:::::shellfile.ods
 
 The password was quickly found: `john11`. After opening the file with LibreOffice and the password, I found a reference to a potential web shell: `thejabasshell.php`.
 
-[![the content of the ods file](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-15-170712.png)](https://nutzh.top/wp-content/uploads/2025/10/Screenshot-2025-10-15-170712.png)in this file we have a endpoint and i think its a web shell based on its name .
+[![the content of the ods file](/mdx_images/2025/10/Screenshot-2025-10-15-170712.png)](/mdx_images/2025/10/Screenshot-2025-10-15-170712.png)in this file we have a endpoint and i think its a web shell based on its name .
 
 I used `ffuf` to find the required GET parameters.
 

@@ -51,11 +51,11 @@ I tried fuzzing the directories, but nothing came up that could lead us further.
 
 Let’s open Wireshark using `sudo wireshark`, and then visit the site at 192.168.56.104 to see if it pings us.
 
-[![analyse wireshark pingme](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-25-002234-1024x615.png)](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-25-002234.png)Once we get all the packets coming in, we’ll just filter for ICMP so we can see what’s going on.
+[![analyse wireshark pingme](/mdx_images/2025/06/Capture-decran-2025-06-25-002234-1024x615.png)](/mdx_images/2025/06/Capture-decran-2025-06-25-002234.png)Once we get all the packets coming in, we’ll just filter for ICMP so we can see what’s going on.
 
 Looking at the ICMP request, it seems like the first packet came from the target user.
 
-[![analyse wireshark pingme](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-25-002352-1024x517.png)](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-25-002352.png)For Packet 1 , we observe the following details:
+[![analyse wireshark pingme](/mdx_images/2025/06/Capture-decran-2025-06-25-002352-1024x517.png)](/mdx_images/2025/06/Capture-decran-2025-06-25-002352.png)For Packet 1 , we observe the following details:
 
 ```bash
 0000   08 00 27 90 46 e4 08 00 27 bf 70 50 08 00 45 00   ..'.F...'.pP..E.
@@ -134,7 +134,7 @@ pinger@pingme:~$ /usr/local/sbin/sendfilebyping 192.168.56.102 ~/user.txt
 ```
 We can see that it sends us packets numbered from 312 to 373. We'll focus only on the ICMP request packets within this range, extract their data, and assemble it to reveal the user flag.
 
-[![wireshark](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-25-003441-1-1024x480.png)](https://nutzh.top/wp-content/uploads/2025/06/Capture-decran-2025-06-25-003441-1.png)Upon inspecting the ICMP packets sent by the binary, we identified that each one contains a payload with repeating characters. By extracting and concatenating the payloads from packets 1 through 15 in order, we reconstruct the following string:
+[![wireshark](/mdx_images/2025/06/Capture-decran-2025-06-25-003441-1-1024x480.png)](/mdx_images/2025/06/Capture-decran-2025-06-25-003441-1.png)Upon inspecting the ICMP packets sent by the binary, we identified that each one contains a payload with repeating characters. By extracting and concatenating the payloads from packets 1 through 15 in order, we reconstruct the following string:
 
 ```text
 HHH MMM VVVV {{{{{{ IIIIII CCC MM PPP iiiiii ssss SSS aaa ffff eee }}}}}
