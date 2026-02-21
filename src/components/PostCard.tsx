@@ -46,7 +46,7 @@ export function PostCard({
         <img
           alt={post.meta.title}
           className="rounded-t-xl w-full object-cover h-48 transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]"
-          src={post.meta.cover ?? "/mc/images/batman.jpg"}
+          src={post.meta.cover ?? "/mc/images/batman2.avif"}
         />
       </div>
       <div className="p-4 flex flex-col flex-grow">

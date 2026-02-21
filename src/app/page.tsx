@@ -11,7 +11,7 @@ type HomeSearchParams = {
   page?: string;
 };
 
-const WRITEUPS_PER_PAGE = 12;
+const WRITEUPS_PER_PAGE = 9;
 
 export default async function HomePage({
   searchParams,
@@ -69,7 +69,7 @@ export default async function HomePage({
                   alt="Profile"
                   className="object-cover object-center"
                   style={{ position: "absolute", height: "100%", width: "100%", left: 0, top: 0, right: 0, bottom: 0 }}
-                  src="/mc/images/batman.jpg"
+                  src="/mc/images/batman2.avif"
                 />
               </div>
             </section>
