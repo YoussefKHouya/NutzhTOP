@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { SiteShell } from "@/components/SiteShell";
 import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { SectionTitle } from "@/components/SectionTitle";
@@ -65,10 +66,12 @@ export default async function HomePage({
 
             <section className="h-[45vh] flex flex-col items-center justify-center mb-8">
               <div className="relative w-full h-[400px] rounded-xl overflow-hidden transition-transform duration-200 ease-out" style={{ contain: "paint" as never }}>
-                <img
+                <Image
                   alt="Profile"
                   className="object-cover object-center"
-                  style={{ position: "absolute", height: "100%", width: "100%", left: 0, top: 0, right: 0, bottom: 0 }}
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 1200px"
                   src="/mc/images/batman2.avif"
                 />
               </div>
@@ -89,7 +92,14 @@ export default async function HomePage({
                       aria-label="Search blog posts"
                       className="w-full p-3 pl-10 rounded-lg border border-gray-700 bg-zinc-800/50 focus:bg-zinc-800 focus:border-white focus:outline-none transition-all text-white placeholder-gray-400"
                     />
-                    <img alt="" width={20} height={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 opacity-70" style={{ filter: "invert(1)" }} src="/mc/images/search.png" />
+                    <Image
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 opacity-70"
+                      style={{ filter: "invert(1)" }}
+                      src="/mc/images/search.png"
+                    />
                   </div><button type="submit" className="px-4 py-2 rounded-lg border border-gray-700 bg-zinc-800/50 text-gray-300 hover:border-gray-500">
                     Go
                   </button>
@@ -150,5 +160,4 @@ export default async function HomePage({
     </SiteShell>
   );
 }
-
 

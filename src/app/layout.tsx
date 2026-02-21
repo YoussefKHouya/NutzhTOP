@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { PinnedCodeProvider } from "@/components/PinnedCodeProvider";
-import { LoaderOverlay } from "@/components/LoaderOverlay";
 
 export const metadata: Metadata = {
   title: {
@@ -27,11 +25,8 @@ export default function RootLayout({
         <link rel="stylesheet" href="/mc/theme-post.css" />
       </head>
       <body className="antialiased flex flex-col min-h-screen">
-        <PinnedCodeProvider>
-          <div className="dot-overlay" />
-          <LoaderOverlay />
-          {children}
-        </PinnedCodeProvider>
+        <div className="dot-overlay" />
+        {children}
       </body>
     </html>
   );

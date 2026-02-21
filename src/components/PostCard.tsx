@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Post } from "@/lib/posts";
 
 type PostCardProps = {
@@ -43,10 +44,13 @@ export function PostCard({
     <Link href={href} className={`bg-[#111111] rounded-xl flex flex-col shadow-lg border-2 border-[#111111] transition-all duration-300 hover:shadow-xl group ${className}`.trim()}>
       <div className="relative w-full overflow-hidden rounded-t-xl">
         <div className="absolute inset-0 bg-gradient-to-b from-[#14141480] via-transparent to-[#141414] z-10 rounded-t-xl group-hover:opacity-80 transition-opacity duration-300" />
-        <img
+        <Image
           alt={post.meta.title}
-          className="rounded-t-xl w-full object-cover h-48 transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]"
+          className="rounded-t-xl w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]"
           src={post.meta.cover ?? "/mc/images/batman2.avif"}
+          width={800}
+          height={400}
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
       </div>
       <div className="p-4 flex flex-col flex-grow">
