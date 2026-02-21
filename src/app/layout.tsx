@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { LoaderOverlay } from "@/components/LoaderOverlay";
 
 export const metadata: Metadata = {
   title: {
@@ -26,6 +27,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased flex flex-col min-h-screen">
         <div className="dot-overlay" />
+        <LoaderOverlay />
         {children}
       </body>
     </html>
