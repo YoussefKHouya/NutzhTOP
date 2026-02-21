@@ -20,6 +20,21 @@ export type Post = {
 };
 
 const CONTENT_DIR = path.join(process.cwd(), "content");
+const PUBLIC_DIR = path.join(process.cwd(), "public");
+const DEFAULT_COVER = "/mc/images/batman2.avif";
+
+function normalizeCover(rawCover: string | undefined): string | undefined {
+  const cover = (rawCover || "").trim();
+  if (!cover) return undefined;
+
+  if (/^https?:\/\//i.test(cover)) return cover;
+
+  const normalized = cover.startsWith("/") ? cover : `/${cover}`;
+  const cleaned = normalized.split("?")[0].split("#")[0];
+  const localFile = path.join(PUBLIC_DIR, cleaned.replace(/^\/+/, ""));
+
+  return fs.existsSync(localFile) ? normalized : undefined;
+}
 
 function normalizePlatform(rawPlatform: string | undefined, slug: string[]): PostMeta["platform"] {
   const p = (rawPlatform || "").toLowerCase().trim();
@@ -58,12 +73,13 @@ export function getPostBySlug(slug: string[]): Post {
   const raw = fs.readFileSync(file, "utf8");
   const { data, content } = matter(raw);
 
+  const rawCover = (data.cover as string | undefined) ?? (data.image as string | undefined);
   const meta: PostMeta = {
     title: (data.title as string) ?? slug.at(-1) ?? "Untitled",
     date: (data.date as string) ?? new Date().toISOString(),
     description: (data.description as string) ?? (data.excerpt as string) ?? undefined,
     tags: (data.tags as string[] | undefined) ?? [],
-    cover: (data.cover as string | undefined) ?? (data.image as string | undefined),
+    cover: normalizeCover(rawCover) ?? DEFAULT_COVER,
     difficulty: (data.difficulty as string | undefined)?.toLowerCase(),
     type: ((data.type as string | undefined) ?? "writeup").toLowerCase(),
     platform: normalizePlatform(data.platform as string | undefined, slug),

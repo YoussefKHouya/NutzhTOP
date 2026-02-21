@@ -3,13 +3,20 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-type ClickToZoomImageProps = React.ImgHTMLAttributes<HTMLImageElement>;
+type ClickToZoomImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
+  fallbackSrc?: string;
+};
 
-export function ClickToZoomImage({ className, alt, ...props }: ClickToZoomImageProps) {
+export function ClickToZoomImage({ className, alt, fallbackSrc, ...props }: ClickToZoomImageProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState<string | undefined>(typeof props.src === "string" ? props.src : undefined);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    setCurrentSrc(typeof props.src === "string" ? props.src : undefined);
+  }, [props.src]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -29,7 +36,16 @@ export function ClickToZoomImage({ className, alt, ...props }: ClickToZoomImageP
         onClick={() => setOpen(true)}
         aria-label={`Open image${alt ? `: ${alt}` : ""}`}
       >
-        <img alt={alt ?? ""} className={className} {...props} />
+        <img
+          alt={alt ?? ""}
+          className={className}
+          {...props}
+          src={currentSrc}
+          onError={() => {
+            if (!fallbackSrc || currentSrc === fallbackSrc) return;
+            setCurrentSrc(fallbackSrc);
+          }}
+        />
       </button>
 
       {mounted && open
@@ -43,8 +59,12 @@ export function ClickToZoomImage({ className, alt, ...props }: ClickToZoomImageP
             >
               <img
                 alt={alt ?? ""}
-                src={typeof props.src === "string" ? props.src : undefined}
+                src={currentSrc}
                 className="max-w-full max-h-[92vh] object-contain rounded"
+                onError={() => {
+                  if (!fallbackSrc || currentSrc === fallbackSrc) return;
+                  setCurrentSrc(fallbackSrc);
+                }}
               />
             </div>,
             document.body,

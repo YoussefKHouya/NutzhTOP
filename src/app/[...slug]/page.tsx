@@ -21,6 +21,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   try {
     const { slug } = await params;
     const post = getPostBySlug(slug);
+    const coverSrc = (post.meta.cover || "").trim() || "/mc/images/batman2.avif";
     const related = getAllPosts().find((p) => p.slug.join('/') !== slug.join('/'));
 
     // Dynamic category from path (e.g., /ctf/slug => ctf)
@@ -74,13 +75,16 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                       ) : null}
 
                       {/* Cover image */}
-                      {post.meta.cover ? (
-                        <div className="mb-8 md:mb-12">
-                          <div className="cover-image">
-                            <ClickToZoomImage alt={post.meta.title} className="w-full h-auto rounded-lg" src={post.meta.cover} />
-                          </div>
+                      <div className="mb-8 md:mb-12">
+                        <div className="cover-image">
+                          <ClickToZoomImage
+                            alt={post.meta.title}
+                            className="w-full h-auto rounded-lg"
+                            src={coverSrc}
+                            fallbackSrc="/mc/images/batman2.avif"
+                          />
                         </div>
-                      ) : null}
+                      </div>
 
                       {/* Content */}
                       <div className="prose prose-invert max-w-none">
