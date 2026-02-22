@@ -1,23 +1,28 @@
+import React from "react";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { CodeBlock } from "@/components/CodeBlock";
 import { ClickToZoomImage } from "@/components/ClickToZoomImage";
+
+function isImageHref(href: string) {
+  return /^\/mdx_images\//i.test(href) || /\.(png|jpe?g|gif|webp|avif|svg)(\?.*)?$/i.test(href);
+}
 
 const components = {
   pre: ({ children, ...props }: { children?: React.ReactNode }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const child: any = Array.isArray(children) ? children[0] : children;
-    
+
     // Check if this is a code block (has <code> child)
     if (child?.type === "code" || child?.props?.className) {
       const code = child?.props?.children;
       const className = child?.props?.className as string | undefined;
       const lang = className?.startsWith("language-") ? className.replace("language-", "") : undefined;
-      
+
       if (typeof code === "string") {
         return <CodeBlock code={code} lang={lang} className={className} />;
       }
     }
-    
+
     // Fallback for non-code pre blocks
     return <pre {...props}>{children}</pre>;
   },
@@ -37,6 +42,22 @@ const components = {
     // Code block code (handled by pre component)
     return <code {...props} />;
   },
+  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    const href = typeof props.href === "string" ? props.href : "";
+    if (href && isImageHref(href)) {
+      const child = React.Children.toArray(props.children)[0];
+      const childProps = React.isValidElement(child) ? (child.props as React.ImgHTMLAttributes<HTMLImageElement>) : undefined;
+      return (
+        <ClickToZoomImage
+          src={href}
+          alt={childProps?.alt ?? ""}
+          className={`${childProps?.className ?? ""} cursor-zoom-in`.trim()}
+        />
+      );
+    }
+
+    return <a {...props} />;
+  },
   img: (props: React.ImgHTMLAttributes<HTMLImageElement>) => (
     <ClickToZoomImage {...props} className={`${props.className ?? ""} cursor-zoom-in`.trim()} />
   ),
@@ -45,3 +66,4 @@ const components = {
 export function MDXContent({ source }: { source: string }) {
   return <MDXRemote source={source} components={components} />;
 }
+

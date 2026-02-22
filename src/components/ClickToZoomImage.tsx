@@ -51,7 +51,7 @@ export function ClickToZoomImage({ className, alt, fallbackSrc, ...props }: Clic
       {mounted && open
         ? createPortal(
             <div
-              className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm p-4 md:p-8 flex items-center justify-center"
+              className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm p-4 md:p-8 flex items-center justify-center"
               onClick={() => setOpen(false)}
               role="dialog"
               aria-modal="true"
@@ -61,6 +61,7 @@ export function ClickToZoomImage({ className, alt, fallbackSrc, ...props }: Clic
                 alt={alt ?? ""}
                 src={currentSrc}
                 className="max-w-full max-h-[92vh] object-contain rounded"
+                onClick={(e) => e.stopPropagation()}
                 onError={() => {
                   if (!fallbackSrc || currentSrc === fallbackSrc) return;
                   setCurrentSrc(fallbackSrc);
