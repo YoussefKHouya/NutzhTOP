@@ -171,12 +171,12 @@ $ mysql -u wp_user -p -h 127.0.0.1 -P 3306
 Enter password: #wp_password
 ```
 after connecting we gonna interact with the wordpress in sqlite with "use wordpress" after we gonna show all the tables with "show tables;" and the last is "SELECT \* From wp\_users;" and we gonna get the shawing and root hashed password
-
+```bash
 | ID | user\_login | user\_pass |
 |---|---|---|
 | 1 | root | $P$Beh5HLRUlTi1LpLEAstRyXaaBOJICj1 |
 | 3 | shawking | $P$Br7LUHG9NXXXXXXXXXXXXXXXXX |
-
+```
 Crack the password using Hashcat.   
  ssh to the user shawking and grep the User flag
 
@@ -190,12 +190,12 @@ Grafana is running on `127.0.0.1:3000`. Using `linpeas.sh`, we extract its SQLit
 sqlitebrowser grafana.db
 ```
 so we got the password of the admin and the developer
-
+```bash
 | Username | Email | Name | Password Hash | Salt |
 |---|---|---|---|---|
 | admin | admin@localhost |  | 441a715bd788e92817XXXXXXXXXXXX | CFn7zMsQpf |
 | developer | ghubble@bigbang.htb | George Hubble | 7e8018a4210efbaeb12f011XXXX | 4umebBJucv |
-
+```
 so when looking how to decrypt i see that Grafana uses PBKDF2-SHA256 for passwords so i used the tool [Grafana2Hashcat](https://github.com/iamaldi/grafana2hashcat) .  
 Crack the password with `grafana2hashcat.py`:
 

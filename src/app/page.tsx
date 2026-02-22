@@ -145,11 +145,11 @@ export default async function HomePage({
 
             <section className="flex flex-col relative pb-16">
               <SectionTitle title="Projects" />
-              <div className="space-y-4 md:space-y-6 max-w-7xl mx-auto px-4 w-full">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto px-4 w-full">
                 {projectList.length === 0 ? (
-                  <div className="text-center text-gray-400 py-8">No projects yet.</div>
+                  <div className="col-span-full text-center text-gray-400 py-8">No projects yet.</div>
                 ) : projectList.map((p) => (
-                  <PostCard key={`project-${p.slug.join("/")}`} post={p} variant="list" showTags />
+                  <PostCard key={`project-${p.slug.join("/")}`} post={p} showCategory />
                 ))}
               </div>
             </section>
