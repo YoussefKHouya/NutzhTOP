@@ -12,12 +12,6 @@ export default function ResourcesPage() {
             alt="Under Construction"
             className="mx-auto mt-8"
           />
-          <p> Repo used for Recon </p>
-          <p className="mt-4 text-gray-300">https://github.com/insidetrust/statistically-likely-usernames <a href="https://github.com/insidetrust/statistically-likely-usernames" className="text-blue-400 hover:underline">View on GitHub</a></p>
-          <p className="mt-4 text-gray-300"> https://github.com/danielmiessler/SecLists <a href="https://github.com/danielmiessler/SecLists" className="text-blue-400 hover:underline">View on GitHub</a></p>
-          <p className="mt-4 text-gray-300"> https://github.com/TheKingOfDuck/fuzzDicts <a href="https://github.com/TheKingOfDuck/fuzzDicts" className="text-blue-400 hover:underline">View on GitHub</a></p>
-
-
         </section>
       </main>
     </SiteShell>
