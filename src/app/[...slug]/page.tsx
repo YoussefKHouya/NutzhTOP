@@ -8,6 +8,7 @@ import { ClickToZoomImage } from "@/components/ClickToZoomImage";
 import { SectionTitle } from "@/components/SectionTitle";
 import { PostCard } from "@/components/PostCard";
 import { TableOfContents } from "@/components/TableOfContents";
+import { DraggableToc } from "@/components/DraggableToc";
 import { ReadProgressFooter } from "@/components/ReadProgressFooter";
 import { PinnedCodeProvider } from "@/components/PinnedCodeProvider";
 // floating widget disabled for parity cleanup
@@ -125,9 +126,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                 </div>
               </div>
 
-              <div className="hidden md:block fixed left-10 lg:left-14 xl:left-20 top-28 w-[220px] lg:w-[240px] z-40">
-                <TableOfContents />
-              </div>
+              <DraggableToc />
 
               {/* Bottom character/widget */}
               <PizzaWidget />

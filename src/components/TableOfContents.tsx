@@ -17,7 +17,7 @@ function slugify(text: string) {
     .replace(/-+/g, "-");
 }
 
-export function TableOfContents() {
+export function TableOfContents({ draggable = false }: { draggable?: boolean } = {}) {
   const [items, setItems] = useState<TocItem[]>([]);
 
   useEffect(() => {
@@ -49,8 +49,8 @@ export function TableOfContents() {
   if (!items.length) return null;
 
   return (
-    <aside className="mt-8 lg:mt-0">
-      <div className="rounded-xl border border-white/10 bg-[#111111]/60 p-4 lg:sticky lg:top-32 max-w-[262px]">
+    <aside className={draggable ? "" : "mt-8 lg:mt-0"}>
+      <div className={`rounded-xl border border-white/10 bg-[#111111]/60 p-4 max-w-[262px] ${draggable ? "" : "lg:sticky lg:top-32"}`}>
         <p className="text-sm uppercase tracking-wider text-zinc-400 mb-3">On this page</p>
         <ul className="space-y-2 text-sm">
           {items.map((item) => (
