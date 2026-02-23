@@ -111,7 +111,7 @@ Inside, we found a **Base64** string. After decoding it, we saw the file signatu
 
 ```bash
 curl http://192.168.138.131:66/eon |base64 -d >eon.zip
-```
+
 
 ζ cat eon.zip  
 PK��R�I\[� creds.txt�s��p���-,&j2�C��G�bc������/�PK?��R�I\[� $ creds.txt  
@@ -120,7 +120,7 @@ l��;�(���k6�(���k6�(�PK\[F
 Archive: eon.zip  
 \[eon.zip\] creds.txt password:  
 skipping: creds.txt incorrect password
-
+```
 The **ZIP** file was **password-protected**, so we used **`zip2john`** and **John** the Ripper to crack the password.
 
 ```text
