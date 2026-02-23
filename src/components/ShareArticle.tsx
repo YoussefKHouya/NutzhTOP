@@ -1,5 +1,8 @@
 "use client";
 
+// NOTE (parked): kept for future use, currently not wired into any page.
+// Safe to keep in repo without affecting runtime.
+
 import { useState } from "react";
 
 export function ShareArticle({ title }: { title: string }) {

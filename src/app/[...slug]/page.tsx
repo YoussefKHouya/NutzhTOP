@@ -23,7 +23,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     const { slug } = await params;
     const post = getPostBySlug(slug);
     const coverSrc = (post.meta.cover || "").trim() || "/mc/images/batman2.avif";
-    const related = getAllPosts().find((p) => p.slug.join('/') !== slug.join('/'));
+    const related = getAllPosts()
+      .filter((p) => p.slug.join('/') !== slug.join('/'))
+      .slice(0, 2);
 
     // Dynamic category from path (e.g., /ctf/slug => ctf)
     const category = slug[0] ?? "";
@@ -111,11 +113,15 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                     </div>
                   </article>
 
-                  {related ? (
+                  {related.length ? (
                     <div className="mt-16 md:mt-24 px-4 md:px-6">
                       <SectionTitle title="You might also like" className="mb-8 md:mb-12" />
-                      <div className="relative max-w-md mx-auto">
-                        <PostCard post={related} />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                        {related.map((item) => (
+                          <div key={item.slug.join('/')} className="relative">
+                            <PostCard post={item} />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ) : null}
@@ -141,3 +147,6 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     return notFound();
   }
 }
+
+
+
