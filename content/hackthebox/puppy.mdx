@@ -192,7 +192,7 @@ userAccountControl: ACCOUNTDISABLE; NORMAL_ACCOUNT
 ```
 or :
 
-[![adam.silver UAC](/mdx_images/2025/05/admin.silver-1.png)](/mdx_images/2025/05/admin.silver-1.png)As shown in BloodHound’s node information section, the **Account Enabled** flag is set to false. This corresponds to the `ACCOUNTDISABLE` flag being active, which is why we cannot authenticate as `ADAM.Silver`. The userAccountControl (UAC) value is currently set to `514`, which means **Normal Account (512)** plus ** ACCOUNTDISABLE (2)**. To enable the account, we need to change the UAC value from `514` to `512`.We can accomplish this by using `ldapmodify` to update the userAccountControl attribute for `ADAM.Silver`.
+[![adam.silver UAC](/mdx_images/2025/05/admin.silver-1.png)](/mdx_images/2025/05/admin.silver-1.png)As shown in BloodHound’s node information section, the **Account Enabled** flag is set to false. This corresponds to the `ACCOUNTDISABLE` flag being active, which is why we cannot authenticate as `ADAM.Silver`. The userAccountControl (UAC) value is currently set to `514`, which means **Normal Account (512)** plus **ACCOUNTDISABLE (2)**. To enable the account, we need to change the UAC value from `514` to `512`.We can accomplish this by using `ldapmodify` to update the userAccountControl attribute for `ADAM.Silver`.
 
 create a file name "enable" for example and write this :
 

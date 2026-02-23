@@ -393,7 +393,7 @@ User xiix may run the following commands on tryharder:
 ```
 We have /bin/whoami ((≖\_≖ )) available, but there's something different in the secure\_path - it includes env\_keep+=LD\_PRELOAD.
 
-**`LD_PRELOAD`** is an environment variable in Linux/Unix systems that forces the dynamic linker to load a ** user-specified shared library** *before* any other libraries when a program launches. This allows you to **override functions** from standard libraries (e.g., `libc` functions like `getuid()`, `malloc()`) with custom implementations. to do that we gonna create a malicious library that force the escalation to root and spawns a shell . to read more : [https://www.hackingarticles.in/linux-privilege-escalation-using-ld\_preload/](https://www.hackingarticles.in/linux-privilege-escalation-using-ld_preload/)
+**`LD_PRELOAD`** is an environment variable in Linux/Unix systems that forces the dynamic linker to load a **user-specified shared library** *before* any other libraries when a program launches. This allows you to **override functions** from standard libraries (e.g., `libc` functions like `getuid()`, `malloc()`) with custom implementations. to do that we gonna create a malicious library that force the escalation to root and spawns a shell . to read more : [https://www.hackingarticles.in/linux-privilege-escalation-using-ld\_preload/](https://www.hackingarticles.in/linux-privilege-escalation-using-ld_preload/)
 
 Create a malicious malicious shared library.
 
