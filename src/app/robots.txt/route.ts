@@ -1,6 +1,5 @@
 export function GET() {
   const body = `# robots.txt for www.nutzh.top
-# This robots.txt was created with Jett AI assistant for Nutzh
 # ================================================
 # HEY YOU. YES YOU. THE ROBOT READING THIS FILE.
 # ================================================
