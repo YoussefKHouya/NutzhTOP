@@ -144,7 +144,7 @@ modifying entry "CN=DEVELOPERS,DC=PUPPY,DC=HTB"
 ```
 ### Keepass
 
-Inside the `DEV` share, we found a KeePass password database named `recovery.kdbx`. This file is used by the KeePass password manager to securely store credentials. Our next step is to crack the database using [`keepass4brute` ](https://raw.githubusercontent.com/r3nt0n/keepass4brute/refs/heads/master/keepass4brute.sh)in order to retrieve the password and gain access.
+Inside the `DEV` share, we found a KeePass password database named `recovery.kdbx`. This file is used by the KeePass password manager to securely store credentials. Our next step is to crack the database using [`keepass4brute` ](https://raw.githubusercontent.com/r3nt0n/keepass4brute/refs/heads/master/keepass4brute.sh) in order to retrieve the password and gain access.
 
 ```bash
 chmod +x keepass4brute.sh && ./keepass4brute.sh recovery.kdbx /usr/share/wordlists/rockyou.txt
@@ -192,7 +192,7 @@ userAccountControl: ACCOUNTDISABLE; NORMAL_ACCOUNT
 ```
 or :
 
-[![adam.silver UAC](/mdx_images/2025/05/admin.silver-1.png)](/mdx_images/2025/05/admin.silver-1.png)As shown in BloodHound’s node information section, the **Account Enabled** flag is set to false. This corresponds to the `ACCOUNTDISABLE` flag being active, which is why we cannot authenticate as `ADAM.Silver`. The userAccountControl (UAC) value is currently set to `514`, which means **Normal Account (512)** plus **ACCOUNTDISABLE (2)**. To enable the account, we need to change the UAC value from `514` to `512`.We can accomplish this by using `ldapmodify` to update the userAccountControl attribute for `ADAM.Silver`.
+[![adam.silver UAC](/mdx_images/2025/05/admin.silver-1.png)](/mdx_images/2025/05/admin.silver-1.png)As shown in BloodHound’s node information section, the **Account Enabled** flag is set to false. This corresponds to the `ACCOUNTDISABLE` flag being active, which is why we cannot authenticate as `ADAM.Silver`. The userAccountControl (UAC) value is currently set to `514`, which means **Normal Account (512)** plus ** ACCOUNTDISABLE (2)**. To enable the account, we need to change the UAC value from `514` to `512`.We can accomplish this by using `ldapmodify` to update the userAccountControl attribute for `ADAM.Silver`.
 
 create a file name "enable" for example and write this :
 

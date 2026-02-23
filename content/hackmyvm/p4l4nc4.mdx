@@ -15,7 +15,7 @@ cover: /mc/uploads/2025/05/images.png
 # بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
 
 
-Hi today we gonna try to hack the machine [**p4l4nc4** ](https://hackmyvm.eu/machines/machine.php?vm=p4l4nc4)from [**HackmyVM** ](https://hackmyvm.eu)the first view we can see that the title of the machine is encoded to 1337 or leet , so maybe we gonna encrypt/decrypt something
+Hi today we gonna try to hack the machine [**p4l4nc4** ](https://hackmyvm.eu/machines/machine.php?vm=p4l4nc4) from [**HackmyVM** ](https://hackmyvm.eu) the first view we can see that the title of the machine is encoded to 1337 or leet , so maybe we gonna encrypt/decrypt something
 
 As part of our initial reconnaissance phase, we will use **Nmap** to enumerate open ports on the target system.
 
@@ -41,7 +41,7 @@ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
 Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
 Nmap done: 1 IP address (1 host up) scanned in 22.49 seconds
 ```
-Ports **22 (SSH)** and **80 (HTTP)** are open. Let's begin by inspecting the web service running on port 80
+Ports **22 (SSH)** and ** 80 (HTTP)** are open. Let's begin by inspecting the web service running on port 80
 
 ## FuZZ Directory:
 
@@ -234,7 +234,7 @@ password: #friendster
 ```
 ## PrivEsc
 
-It looks like there’s no **`curl`** or **`wget`** available, so we’re going to use basic commands to check which files the user **p4l4nc4** has access to read or write.
+It looks like there’s no **`curl`** or **`wget`** available, so we’re going to use basic commands to check which files the user ** p4l4nc4** has access to read or write.
 
 ```bash
 find / -perm -4000 -type f 2>/dev/null

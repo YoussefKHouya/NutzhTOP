@@ -49,7 +49,7 @@ The `reminder.php` page contained a **cat image**, but the image path seemed unu
 
 ## Wordpress Vulnerability (CVE 2025-2011)
 
-After some light **fuzzing** on the previously discovered directory, I managed to uncover **credentials for a user named `jimmy`**. However, the challenge now was figuring out how to **leverage or read those credentials** effectively.
+After some light **fuzzing** on the previously discovered directory, I managed to uncover **credentials for a user named `jimmy`**. However, the challenge now was figuring out how to ** leverage or read those credentials** effectively.
 
 I decided to revisit the **WordPress instance** running on port 8000 and perform another scan using **WPScan** — this time including the `--api-token` (which you can get from the [official WPScan website](https://wpscan.com/)) to enable latest vulnerability detection.
 
@@ -96,6 +96,6 @@ no matter how many variations I tried, the **output remained the same**, and I c
 
 While continuing enumeration, I discovered that the **`grep` binary was writable** by the current user — an unusual and critical misconfiguration. To exploit this, I simply replaced its content with a Bash shell:
 
-**Fun Fact:**I actually tried to skip the whole `jimmy` user process by directly exploiting the SQL injection in the WordPress plugin to read the `wp-config.php` file… but the creator was **Tricky too** for that!
+**Fun Fact:** I actually tried to skip the whole `jimmy` user process by directly exploiting the SQL injection in the WordPress plugin to read the `wp-config.php` file… but the creator was **Tricky too** for that!
 
 **ROoteD**

@@ -160,9 +160,9 @@ tcp   LISTEN 0      80         127.0.0.1:3306      0.0.0.0:*
 tcp   LISTEN 0      511             [::]:80           [::]:*          
 tcp   LISTEN 0      128             [::]:22           [::]:* 
 ```
-I checked **[GTFOBins ](https://gtfobins.github.io/#)**to see how we could abuse nmap for privilege escalation. While reverse shells and writing files didn't work, reading files did.
+I checked **[GTFOBins ](https://gtfobins.github.io/#)** to see how we could abuse nmap for privilege escalation. While reverse shells and writing files didn't work, reading files did.
 
-So, I used **[nmap](https://gtfobins.github.io/gtfobins/nmap/#file-read) **to read the **index.php** file located at **/var/www/html/index.php**:
+So, I used **[nmap](https://gtfobins.github.io/gtfobins/nmap/#file-read)** to read the **index.php** file located at **/var/www/html/index.php**:
 
 ```bash
 oliva@oliva:~$ /usr/bin/nmap -iL /var/www/html/index.php 
