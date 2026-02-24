@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LoaderOverlay } from "@/components/LoaderOverlay";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: {
@@ -30,6 +31,7 @@ export default function RootLayout({
         <div className="dot-overlay" />
         <LoaderOverlay />
         {children}
+        <Analytics />
       </body>
     </html>
   );
