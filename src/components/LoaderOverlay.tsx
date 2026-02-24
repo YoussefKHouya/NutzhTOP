@@ -3,14 +3,69 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
+const NAV_INTENT_KEY = "mc.loader.navIntentTs";
+
 export function LoaderOverlay() {
   const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [pct, setPct] = useState(0);
   const progressRef = useRef<number | null>(null);
   const hideRef = useRef<number | null>(null);
+  const firstLoadRef = useRef(true);
+
+  // Mark internal click navigations only (so back/forward or robots.txt returns don't pop loader late)
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const a = target.closest("a") as HTMLAnchorElement | null;
+      if (!a) return;
+      if (a.target === "_blank" || a.hasAttribute("download")) return;
+
+      const href = a.getAttribute("href") || "";
+      if (!href || href.startsWith("#")) return;
+
+      // Internal navigation only
+      const isInternal = href.startsWith("/") || href.startsWith(window.location.origin);
+      if (!isInternal) return;
+
+      try {
+        window.sessionStorage.setItem(NAV_INTENT_KEY, String(Date.now()));
+      } catch {
+        // ignore storage errors
+      }
+    };
+
+    document.addEventListener("click", onDocClick, true);
+    return () => document.removeEventListener("click", onDocClick, true);
+  }, []);
 
   useEffect(() => {
+    // Never show loader on first hard load
+    if (firstLoadRef.current) {
+      firstLoadRef.current = false;
+      setVisible(false);
+      setPct(0);
+      return;
+    }
+
+    // Show only for intentional internal click navigation (prevents late pop-in)
+    let shouldShow = false;
+    try {
+      const ts = Number(window.sessionStorage.getItem(NAV_INTENT_KEY) || "0");
+      window.sessionStorage.removeItem(NAV_INTENT_KEY);
+      shouldShow = Number.isFinite(ts) && ts > 0 && Date.now() - ts < 2500;
+    } catch {
+      shouldShow = false;
+    }
+
+    if (!shouldShow) {
+      setVisible(false);
+      setPct(0);
+      return;
+    }
+
     let i = 0;
     setPct(0);
     setVisible(true);
@@ -44,7 +99,7 @@ export function LoaderOverlay() {
         <div className="relative text-8xl font-bold text-white hover:text-gray-300 transition-colors duration-300 px-6 py-2 flex flex-col items-center sm:text-6xl">
           <img
             alt="Dog"
-            loading="lazy"
+            loading="eager"
             width={200}
             height={200}
             decoding="async"

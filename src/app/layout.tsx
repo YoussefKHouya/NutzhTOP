@@ -24,6 +24,7 @@ export default function RootLayout({
       <head>
         <link rel="stylesheet" href="/mc/theme.css" />
         <link rel="stylesheet" href="/mc/theme-post.css" />
+        <link rel="preload" as="image" href="/mc/images/dog.gif" type="image/gif" />
       </head>
       <body className="antialiased flex flex-col min-h-screen">
         <div className="dot-overlay" />

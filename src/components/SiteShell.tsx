@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
@@ -10,7 +10,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   const clickFxRef = useRef<HTMLAudioElement | null>(null);
   const SOUND_PREF_KEY = "site.soundMuted";
 
-  async function playClickFx() {
+  const playClickFx = useCallback(async () => {
     if (soundMuted) return;
 
     try {
@@ -61,7 +61,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore
     }
-  }
+  }, [soundMuted]);
 
   useEffect(() => {
     try {
@@ -106,7 +106,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("click", onAnyClick);
     };
-  }, [soundMuted]);
+  }, [playClickFx]);
 
   return (
     <div className="mt-12 flex flex-col flex-grow">
@@ -217,6 +217,11 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
             <li className="transition-opacity duration-300 hover:opacity-70">
               <Link className="text-white text-3xl md:text-4xl font-bold block" href="/resources" onClick={() => setMenuOpen(false)}>
                 Resources
+              </Link>
+            </li>
+            <li className="transition-opacity duration-300 hover:opacity-70">
+              <Link className="text-white text-3xl md:text-4xl font-bold block" href="/privacy-policy" onClick={() => setMenuOpen(false)}>
+                Privacy Policy
               </Link>
             </li>
           </ul>

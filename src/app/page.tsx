@@ -59,7 +59,7 @@ export default async function HomePage({
     <SiteShell>
       <main className="flex-grow">
         <div className="min-h-screen flex items-center justify-center max-w-7xl mx-auto">
-          <main className="container mx-auto px-4 py-8">
+          <div className="container mx-auto px-4 py-8">
             <div className="text-center mb-4">
               <h1 className="text-white/90 text-2xl md:text-4xl font-fustat leading-tight" dir="rtl">رَمَضَانُ كَرِيمٌ</h1>
             </div>
@@ -153,7 +153,7 @@ export default async function HomePage({
                 ))}
               </div>
             </section>
-          </main>
+          </div>
         </div>
       </main>
       <ScrollTopButton />
