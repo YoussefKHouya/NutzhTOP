@@ -12,6 +12,19 @@ type PostCardProps = {
   className?: string;
 };
 
+const dateFmt = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "2-digit",
+  timeZone: "UTC",
+});
+
+function formatDisplayDate(value: string) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return dateFmt.format(d);
+}
+
 export function PostCard({
   post,
   variant = "image",
@@ -60,11 +73,7 @@ export function PostCard({
         {showDate && (
           <div className="flex justify-center mb-2">
             <p className="text-zinc-500 text-xs font-mono tracking-widest">
-              {new Date(post.meta.date).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "2-digit",
-              })}
+              {formatDisplayDate(post.meta.date)}
             </p>
           </div>
         )}

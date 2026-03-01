@@ -3,7 +3,6 @@ import Link from "next/link";
 import { SiteShell } from "@/components/SiteShell";
 import { MDXContent } from "@/components/MDXContent";
 import { ScrollTopButton } from "@/components/ScrollTopButton";
-import { PizzaWidget } from "@/components/PizzaWidget";
 import { ClickToZoomImage } from "@/components/ClickToZoomImage";
 import { SectionTitle } from "@/components/SectionTitle";
 import { PostCard } from "@/components/PostCard";
@@ -13,6 +12,19 @@ import { ReadProgressFooter } from "@/components/ReadProgressFooter";
 import { PinnedCodeProvider } from "@/components/PinnedCodeProvider";
 // floating widget disabled for parity cleanup
 import { getAllPostSlugs, getPostBySlug, getAllPosts } from "@/lib/posts";
+
+const dateFmt = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "2-digit",
+  timeZone: "UTC",
+});
+
+function formatDisplayDate(value: string) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return dateFmt.format(d);
+}
 
 export function generateStaticParams() {
   return getAllPostSlugs().map((slug) => ({ slug }));
@@ -52,11 +64,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                       <div className="flex flex-col items-center my-12 md:my-16">
                         <div className="flex justify-center mb-3">
                           <p className="text-zinc-500 text-xs font-mono tracking-widest">
-                            {new Date(post.meta.date).toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "2-digit",
-                            })}
+                            {formatDisplayDate(post.meta.date)}
                           </p>
                         </div>
                         <div className="mb-4 text-center">
@@ -133,9 +141,6 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
               </div>
 
               <DraggableToc />
-
-              {/* Bottom character/widget */}
-              <PizzaWidget />
             </div>
             <ReadProgressFooter />
           </main>
@@ -147,6 +152,5 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     return notFound();
   }
 }
-
 
 
