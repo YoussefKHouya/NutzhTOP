@@ -11,12 +11,17 @@ export type PostMeta = {
   difficulty?: "easy" | "medium" | "hard" | string;
   type?: "writeup" | "project" | string;
   platform?: "ctf" | "hackthebox" | "tryhackme" | "other" | string;
+  draft?: boolean;
 };
 
 export type Post = {
   slug: string[];
   meta: PostMeta;
   content: string;
+};
+
+type PostQueryOptions = {
+  includeDrafts?: boolean;
 };
 
 const CONTENT_DIR = path.join(process.cwd(), "content");
@@ -51,7 +56,7 @@ function normalizePlatform(rawPlatform: string | undefined, slug: string[]): Pos
   return "other";
 }
 
-export function getAllPostSlugs(): string[][] {
+export function getAllPostSlugs(options: PostQueryOptions = {}): string[][] {
   if (!fs.existsSync(CONTENT_DIR)) return [];
   const out: string[][] = [];
 
@@ -59,7 +64,18 @@ export function getAllPostSlugs(): string[][] {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
       if (ent.isDirectory()) walk(path.join(dir, ent.name), [...prefix, ent.name]);
       if (ent.isFile() && ent.name.endsWith(".mdx") && !ent.name.startsWith("_")) {
-        out.push([...prefix, ent.name.replace(/\.mdx$/, "")]);
+        const slug = [...prefix, ent.name.replace(/\.mdx$/, "")];
+
+        if (options.includeDrafts) {
+          out.push(slug);
+          continue;
+        }
+
+        const filePath = path.join(CONTENT_DIR, ...slug) + ".mdx";
+        const raw = fs.readFileSync(filePath, "utf8");
+        const { data } = matter(raw);
+        const isDraft = Boolean(data?.draft);
+        if (!isDraft) out.push(slug);
       }
     }
   }
@@ -68,10 +84,15 @@ export function getAllPostSlugs(): string[][] {
   return out;
 }
 
-export function getPostBySlug(slug: string[]): Post {
+export function getPostBySlug(slug: string[], options: PostQueryOptions = {}): Post {
   const file = path.join(CONTENT_DIR, ...slug) + ".mdx";
   const raw = fs.readFileSync(file, "utf8");
   const { data, content } = matter(raw);
+
+  const isDraft = Boolean(data?.draft);
+  if (isDraft && !options.includeDrafts) {
+    throw new Error("Draft post is private");
+  }
 
   const rawCover = (data.cover as string | undefined) ?? (data.image as string | undefined);
   const meta: PostMeta = {
@@ -83,14 +104,18 @@ export function getPostBySlug(slug: string[]): Post {
     difficulty: (data.difficulty as string | undefined)?.toLowerCase(),
     type: ((data.type as string | undefined) ?? "writeup").toLowerCase(),
     platform: normalizePlatform(data.platform as string | undefined, slug),
+    draft: isDraft,
   };
 
   return { slug, meta, content };
 }
 
-export function getAllPosts(): Post[] {
-  const slugs = getAllPostSlugs();
-  const posts = slugs.map((s) => getPostBySlug(s));
+export function getAllPosts(options: PostQueryOptions = {}): Post[] {
+  const slugs = getAllPostSlugs(options);
+  const posts = slugs
+    .map((s) => getPostBySlug(s, { includeDrafts: true }))
+    .filter((p) => options.includeDrafts || !p.meta.draft);
+
   posts.sort((a, b) => {
     const ta = Date.parse(a.meta.date || "");
     const tb = Date.parse(b.meta.date || "");

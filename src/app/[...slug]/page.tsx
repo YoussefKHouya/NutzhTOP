@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { SiteShell } from "@/components/SiteShell";
 import { MDXContent } from "@/components/MDXContent";
@@ -33,7 +34,14 @@ export function generateStaticParams() {
 export default async function PostPage({ params }: { params: Promise<{ slug: string[] }> }) {
   try {
     const { slug } = await params;
-    const post = getPostBySlug(slug);
+    const cookieStore = await cookies();
+    const canViewDrafts = cookieStore.get("ctf_draft_access")?.value === "1";
+
+    const post = getPostBySlug(slug, { includeDrafts: true });
+    if (post.meta.draft && !canViewDrafts) {
+      return notFound();
+    }
+
     const coverSrc = (post.meta.cover || "").trim() || "/mc/images/batman2.avif";
     const related = getAllPosts()
       .filter((p) => p.slug.join('/') !== slug.join('/'))

@@ -56,6 +56,7 @@ Disallow: /my-shameful-failed-attempts/
 Disallow: /3am-debugging-sessions/
 Disallow: /why-is-this-working.txt
 Disallow: /please-hire-me-portfolio/
+Disallow: /ctf-drafts/
 
 # ================================================
 # SPECIAL RULES FOR SPECIAL ROBOTS
