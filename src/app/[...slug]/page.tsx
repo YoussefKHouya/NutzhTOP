@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { SiteShell } from "@/components/SiteShell";
 import { MDXContent } from "@/components/MDXContent";
@@ -13,6 +12,9 @@ import { ReadProgressFooter } from "@/components/ReadProgressFooter";
 import { PinnedCodeProvider } from "@/components/PinnedCodeProvider";
 // floating widget disabled for parity cleanup
 import { getAllPostSlugs, getPostBySlug, getAllPosts } from "@/lib/posts";
+import { hasDraftAccess } from "@/lib/drafts";
+
+export const dynamic = "force-dynamic";
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
@@ -34,11 +36,9 @@ export function generateStaticParams() {
 export default async function PostPage({ params }: { params: Promise<{ slug: string[] }> }) {
   try {
     const { slug } = await params;
-    const cookieStore = await cookies();
-    const canViewDrafts = cookieStore.get("ctf_draft_access")?.value === "1";
-
     const post = getPostBySlug(slug, { includeDrafts: true });
-    if (post.meta.draft && !canViewDrafts) {
+
+    if (post.meta.draft && !(await hasDraftAccess())) {
       return notFound();
     }
 
@@ -143,9 +143,6 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                   ) : null}
                 </div>
 
-                <div className="md:hidden mt-8">
-                  <TableOfContents />
-                </div>
               </div>
 
               <DraggableToc />

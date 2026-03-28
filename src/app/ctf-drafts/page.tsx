@@ -1,56 +1,96 @@
+import crypto from "node:crypto";
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { SiteShell } from "@/components/SiteShell";
 import { SectionTitle } from "@/components/SectionTitle";
 import { getAllPosts } from "@/lib/posts";
+import { DRAFT_ACCESS_COOKIE, hasDraftAccess } from "@/lib/drafts";
 
 export const dynamic = "force-dynamic";
+
+function safeEqual(a: string, b: string) {
+  const aa = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (aa.length !== bb.length) return false;
+  return crypto.timingSafeEqual(aa, bb);
+}
 
 export default async function CtfDraftsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
-  const params = searchParams ? await searchParams : undefined;
-  const cookieStore = await cookies();
-  const hasAccess = cookieStore.get("ctf_draft_access")?.value === "1";
+  const params = await searchParams;
+  const unlocked = await hasDraftAccess();
 
-  if (!hasAccess) {
+  async function unlock(formData: FormData) {
+    "use server";
+
+    const submitted = String(formData.get("password") || "");
+    const expected = process.env.CTF_DRAFT_PASSWORD || "";
+
+    if (!expected) {
+      redirect("/ctf-drafts?error=missing-config");
+    }
+
+    if (!safeEqual(submitted, expected)) {
+      redirect("/ctf-drafts?error=invalid");
+    }
+
+    const store = await cookies();
+    store.set({
+      name: DRAFT_ACCESS_COOKIE,
+      value: "1",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+
+    redirect("/ctf-drafts");
+  }
+
+  if (!unlocked) {
     return (
       <SiteShell>
-        <main className="flex-grow max-w-3xl mx-auto w-full px-4 py-10 md:py-14">
+        <main className="flex-grow max-w-xl mx-auto w-full px-4 py-10 md:py-14">
           <SectionTitle title="CTF Draft Vault" />
 
-          <div className="mx-auto max-w-md rounded-xl border border-zinc-700 bg-zinc-900/60 p-6">
-            <p className="text-zinc-300 mb-4 text-sm">
-              This page is private. Enter your drafts password to unlock unpublished CTF writeups.
+          <div className="rounded-2xl border border-zinc-700 bg-zinc-900/70 p-6 md:p-8 space-y-5">
+            <p className="text-zinc-300 text-sm leading-relaxed">
+              Draft posts are locked. Drop the password and the vault opens. No fake login page circus, just the gate.
             </p>
 
-            {params?.error === "invalid" ? (
-              <p className="mb-4 rounded border border-red-700 bg-red-950/40 p-2 text-sm text-red-300">
-                Wrong password. Try again.
-              </p>
-            ) : null}
+            <form action={unlock} className="space-y-4">
+              <div>
+                <label htmlFor="password" className="block text-sm text-zinc-400 mb-2">
+                  Draft password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  autoFocus
+                  className="w-full rounded-lg border border-zinc-700 bg-black/40 px-4 py-3 text-white outline-none focus:border-zinc-400"
+                  placeholder="Enter password"
+                />
+              </div>
 
-            {params?.error === "missing-config" ? (
-              <p className="mb-4 rounded border border-amber-700 bg-amber-950/40 p-2 text-sm text-amber-300">
-                Draft password is not configured yet (CTF_DRAFT_PASSWORD).
-              </p>
-            ) : null}
+              {params.error === "invalid" ? (
+                <p className="text-sm text-red-400">Wrong password.</p>
+              ) : null}
+              {params.error === "missing-config" ? (
+                <p className="text-sm text-red-400">CTF_DRAFT_PASSWORD is not configured on the server.</p>
+              ) : null}
 
-            <form method="post" action="/ctf-drafts/login" className="space-y-3">
-              <input
-                type="password"
-                name="password"
-                required
-                placeholder="Draft password"
-                className="w-full rounded-lg border border-zinc-600 bg-zinc-800/70 px-3 py-2 text-white placeholder-zinc-400 outline-none focus:border-white"
-              />
               <button
                 type="submit"
-                className="w-full rounded-lg border border-zinc-500 bg-zinc-200 px-3 py-2 text-sm font-semibold text-black hover:bg-white"
+                className="rounded-lg border border-zinc-600 bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-white"
               >
-                Unlock Drafts
+                Unlock drafts
               </button>
             </form>
           </div>
@@ -68,16 +108,8 @@ export default async function CtfDraftsPage({
 
         <div className="mb-6 flex items-center justify-between">
           <p className="text-zinc-300 text-sm">
-            Private draft posts only. Not listed on public pages or sitemap.
+            Draft posts only. Hidden from public pages and blocked unless unlocked.
           </p>
-          <form method="post" action="/ctf-drafts/logout">
-            <button
-              type="submit"
-              className="rounded-lg border border-zinc-500 px-3 py-1.5 text-xs text-zinc-200 hover:border-zinc-300"
-            >
-              Lock
-            </button>
-          </form>
         </div>
 
         {drafts.length === 0 ? (

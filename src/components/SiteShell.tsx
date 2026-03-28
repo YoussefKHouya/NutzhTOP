@@ -215,11 +215,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               </Link>
             </li>
             <li className="transition-opacity duration-300 hover:opacity-70">
-              <Link className="text-white text-3xl md:text-4xl font-bold block" href="/resources" onClick={() => setMenuOpen(false)}>
-                Resources
-              </Link>
-            </li>
-            <li className="transition-opacity duration-300 hover:opacity-70">
               <Link className="text-white text-3xl md:text-4xl font-bold block" href="/privacy-policy" onClick={() => setMenuOpen(false)}>
                 Privacy Policy
               </Link>

