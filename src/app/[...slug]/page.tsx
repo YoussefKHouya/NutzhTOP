@@ -6,15 +6,12 @@ import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { ClickToZoomImage } from "@/components/ClickToZoomImage";
 import { SectionTitle } from "@/components/SectionTitle";
 import { PostCard } from "@/components/PostCard";
-import { TableOfContents } from "@/components/TableOfContents";
 import { DraggableToc } from "@/components/DraggableToc";
 import { ReadProgressFooter } from "@/components/ReadProgressFooter";
 import { PinnedCodeProvider } from "@/components/PinnedCodeProvider";
 // floating widget disabled for parity cleanup
 import { getAllPostSlugs, getPostBySlug, getAllPosts } from "@/lib/posts";
 import { hasDraftAccess } from "@/lib/drafts";
-
-export const dynamic = "force-dynamic";
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
@@ -27,6 +24,30 @@ function formatDisplayDate(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return dateFmt.format(d);
+}
+
+function getRelatedPosts(current: ReturnType<typeof getPostBySlug>, limit = 2) {
+  const currentSlug = current.slug.join("/");
+  const currentTags = new Set((current.meta.tags || []).map((tag) => tag.toLowerCase()));
+  const currentRoot = current.slug[0]?.toLowerCase() || "";
+  const currentPlatform = (current.meta.platform || "").toLowerCase();
+
+  return getAllPosts()
+    .filter((post) => post.slug.join("/") !== currentSlug)
+    .map((post) => {
+      const tagScore = (post.meta.tags || []).reduce(
+        (score, tag) => score + (currentTags.has(tag.toLowerCase()) ? 4 : 0),
+        0,
+      );
+      const samePlatform = currentPlatform && (post.meta.platform || "").toLowerCase() === currentPlatform ? 2 : 0;
+      const sameRoot = currentRoot && post.slug[0]?.toLowerCase() === currentRoot ? 1 : 0;
+      const dateScore = Math.max(0, Date.parse(post.meta.date || "") || 0) / 1_000_000_000_000;
+
+      return { post, score: tagScore + samePlatform + sameRoot + dateScore };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ post }) => post);
 }
 
 export function generateStaticParams() {
@@ -43,9 +64,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     }
 
     const coverSrc = (post.meta.cover || "").trim() || "/mc/images/batman2.avif";
-    const related = getAllPosts()
-      .filter((p) => p.slug.join('/') !== slug.join('/'))
-      .slice(0, 2);
+    const related = getRelatedPosts(post, 2);
 
     // Dynamic category from path (e.g., /ctf/slug => ctf)
     const category = slug[0] ?? "";

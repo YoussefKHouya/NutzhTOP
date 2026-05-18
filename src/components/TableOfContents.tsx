@@ -29,7 +29,7 @@ export function TableOfContents({ draggable = false }: { draggable?: boolean } =
         const text = (h.textContent || "").trim();
         if (!text) return null;
 
-        let id = h.id || slugify(text) || "section";
+        const id = h.id || slugify(text) || "section";
         let unique = id;
         let i = 2;
         while (used.has(unique)) {
@@ -43,7 +43,8 @@ export function TableOfContents({ draggable = false }: { draggable?: boolean } =
       })
       .filter(Boolean) as TocItem[];
 
-    setItems(next);
+    const raf = window.requestAnimationFrame(() => setItems(next));
+    return () => window.cancelAnimationFrame(raf);
   }, []);
 
   if (!items.length) return null;

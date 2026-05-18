@@ -11,15 +11,16 @@ export default function ProjectsPage() {
       <main className="flex-grow max-w-6xl mx-auto w-full px-4 py-10 md:py-14">
         <SectionTitle title="PROJECTS" />
 
-        <div className="space-y-4 md:space-y-6">
-          {list.length === 0 ? (
+        {list.length === 0 ? (
           <div className="text-center text-gray-400 py-12">No projects yet.</div>
-        ) : list.map((p) => (
-            <PostCard key={p.slug.join('/')} post={p} variant="list" showTags />
-          ))}
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {list.map((p) => (
+              <PostCard key={p.slug.join("/")} post={p} showCategory />
+            ))}
+          </div>
+        )}
       </main>
     </SiteShell>
   );
 }
-

@@ -8,15 +8,10 @@ type ClickToZoomImageProps = React.ImgHTMLAttributes<HTMLImageElement> & {
 };
 
 export function ClickToZoomImage({ className, alt, fallbackSrc, ...props }: ClickToZoomImageProps) {
+  const propSrc = typeof props.src === "string" ? props.src : undefined;
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState<string | undefined>(typeof props.src === "string" ? props.src : undefined);
-
-  useEffect(() => setMounted(true), []);
-
-  useEffect(() => {
-    setCurrentSrc(typeof props.src === "string" ? props.src : undefined);
-  }, [props.src]);
+  const [fallbackForSrc, setFallbackForSrc] = useState<string | undefined>();
+  const currentSrc = fallbackForSrc === propSrc && fallbackSrc ? fallbackSrc : propSrc;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -27,6 +22,11 @@ export function ClickToZoomImage({ className, alt, fallbackSrc, ...props }: Clic
       return () => window.removeEventListener("keydown", onKeyDown);
     }
   }, [open]);
+
+  const useFallback = () => {
+    if (!fallbackSrc || fallbackForSrc === propSrc) return;
+    setFallbackForSrc(propSrc);
+  };
 
   return (
     <>
@@ -41,14 +41,11 @@ export function ClickToZoomImage({ className, alt, fallbackSrc, ...props }: Clic
           className={className}
           {...props}
           src={currentSrc}
-          onError={() => {
-            if (!fallbackSrc || currentSrc === fallbackSrc) return;
-            setCurrentSrc(fallbackSrc);
-          }}
+          onError={useFallback}
         />
       </button>
 
-      {mounted && open
+      {typeof document !== "undefined" && open
         ? createPortal(
             <div
               className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm p-4 md:p-8 flex items-center justify-center"
@@ -62,10 +59,7 @@ export function ClickToZoomImage({ className, alt, fallbackSrc, ...props }: Clic
                 src={currentSrc}
                 className="max-w-full max-h-[92vh] object-contain rounded"
                 onClick={(e) => e.stopPropagation()}
-                onError={() => {
-                  if (!fallbackSrc || currentSrc === fallbackSrc) return;
-                  setCurrentSrc(fallbackSrc);
-                }}
+                onError={useFallback}
               />
             </div>,
             document.body,

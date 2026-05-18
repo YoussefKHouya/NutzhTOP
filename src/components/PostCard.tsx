@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import type { Post } from "@/lib/posts";
 
@@ -12,6 +14,8 @@ type PostCardProps = {
   className?: string;
 };
 
+const FALLBACK_COVER = "/mc/images/batman2.avif";
+
 const dateFmt = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "2-digit",
@@ -23,6 +27,38 @@ function formatDisplayDate(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return dateFmt.format(d);
+}
+
+function CardCover({ src, alt }: { src?: string; alt: string }) {
+  const [currentSrc, setCurrentSrc] = useState(src || FALLBACK_COVER);
+  const isRemote = /^https?:\/\//i.test(currentSrc);
+
+  if (isRemote) {
+    // Keep remote covers as plain img so existing external-cover behavior does not need next.config domains.
+    return (
+      <img
+        alt={alt}
+        className="rounded-t-xl w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]"
+        src={currentSrc}
+        onError={() => {
+          if (currentSrc !== FALLBACK_COVER) setCurrentSrc(FALLBACK_COVER);
+        }}
+      />
+    );
+  }
+
+  return (
+    <Image
+      alt={alt}
+      className="rounded-t-xl object-cover transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]"
+      src={currentSrc}
+      fill
+      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+      onError={() => {
+        if (currentSrc !== FALLBACK_COVER) setCurrentSrc(FALLBACK_COVER);
+      }}
+    />
+  );
 }
 
 export function PostCard({
@@ -56,18 +92,9 @@ export function PostCard({
 
   return (
     <Link href={href} className={`bg-[#111111] rounded-xl flex flex-col shadow-lg border-2 border-[#111111] transition-all duration-300 hover:shadow-xl group ${className}`.trim()}>
-      <div className="relative w-full overflow-hidden rounded-t-xl">
+      <div className="relative w-full h-48 overflow-hidden rounded-t-xl">
         <div className="absolute inset-0 bg-gradient-to-b from-[#14141480] via-transparent to-[#141414] z-10 rounded-t-xl group-hover:opacity-80 transition-opacity duration-300" />
-        <img
-          alt={post.meta.title}
-          className="rounded-t-xl w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105 brightness-[0.85] contrast-[1.1]"
-          src={post.meta.cover || "/mc/images/batman2.avif"}
-          onError={(e) => {
-            const img = e.currentTarget as HTMLImageElement;
-            if (img.src.endsWith('/mc/images/batman2.avif')) return;
-            img.src = '/mc/images/batman2.avif';
-          }}
-        />
+        <CardCover alt={post.meta.title} src={post.meta.cover} />
       </div>
       <div className="p-4 flex flex-col flex-grow">
         {showDate && (
