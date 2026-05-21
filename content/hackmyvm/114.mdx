@@ -109,12 +109,16 @@ daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 ```
 So we found the user "welcome".
 
+## User Flag
+
 With the LFI, we can also read the user flag.
 ```bash
 ζ curl http://192.168.56.103/file.php\?file\=/home/welcome/user.txt
 flag{user-210f652e7e3b7e7359e523ef04e96295}
 ```
 After that, we need to escalate to root.
+
+## Initial Access
 
 To move forward, I started reading files that usually exist on a Linux system. After that, I switched to checking processes manually through `/proc`, since we could not use tools like `ps` the normal way through the LFI.
 
@@ -149,6 +153,8 @@ User welcome may run the following commands on 114:
 ```
 
 So he can execute scripts in the `/opt` folder. After reading both files, `/opt/short.sh` was clearly the interesting one.
+
+## Privilege Escalation
 
 ```bash
 welcome@114:~$ cat /opt/short.sh 
