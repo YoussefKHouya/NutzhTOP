@@ -61,10 +61,6 @@ export default async function HomePage({
         <div className="min-h-screen flex items-center justify-center max-w-7xl mx-auto">
           <div className="container mx-auto px-4 py-8">
 
-            <div className="text-center mb-4">
-              <h1 className="text-white/90 text-2xl md:text-4xl font-fustat leading-tight" dir="rtl">عِيدُ مُبَارَك سَعِيد</h1>
-            </div>
-
             <section className="h-[45vh] flex flex-col items-center justify-center mb-8">
               <div className="relative w-full h-[400px] rounded-xl overflow-hidden transition-transform duration-200 ease-out" style={{ contain: "paint" as never }}>
                 <Image
