@@ -272,7 +272,7 @@ The `broken.txt` file had three values, and it looked like an RSA cryptography p
 
 We had `N`, `e`, and `C`. To recover the plaintext, we needed to find `d`, the private exponent.
 
-Since `d = e^-1 mod φ(N)` and `φ(N) = (p-1)(q-1)`, we needed to find `p` and `q`. Because the primes were close, I used Fermat factorization in Python.
+Since `d = e^-1 mod φ(N)` and `φ(N) = (p-1)(q-1)`, we needed to find `p` and `q`., I tried to use  Fermat factorization in Python and it works.
 ```python
 from math import isqrt
 from base64 import b64decode
