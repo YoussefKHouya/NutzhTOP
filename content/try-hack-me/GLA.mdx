@@ -1,0 +1,115 @@
+---
+title: Grand Larceny Auto
+date: '2025-01-14'
+description: 'TryHackMe Grand Larceny Auto Writeup - Game Hacking and Memory Manipulation with Cheat Engine'
+type: writeup
+platform: tryhackme
+difficulty: easy
+tags:
+  - Easy
+  - CHEAT ENGINE
+  - GAME HACKING
+  - REVERSE ENGINEERING
+  - TRY HACK ME
+cover: /mc/images/gla_cover.png
+---
+
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+
+Hello guys! Today we're gonna try something different from what we usually do: **Game Hacking**.
+
+In this writeup, we will walk through the **Grand Larceny Auto (GLA)** room on [TryHackMe](https://tryhackme.com/r/room/grandlarcenyauto). We are going to use **Cheat Engine** to inspect and manipulate the game's runtime memory, bypass in-game wanted level limitations, unlock the safehouse vault, and capture the flag. Let's dive in!
+
+---
+
+## Challenge Overview & Mechanics
+
+After playing the game for a little bit, we can see that the max number of stars we can get is **5**, but opening the Safehouse Vault requires **6 stars**. Since reaching 6 stars is impossible through standard gameplay, we need to inspect the game's memory using **Cheat Engine** and modify the wanted stars variable directly in memory.
+
+---
+
+## Attaching Cheat Engine
+
+First, launch the game and open **Cheat Engine**:
+
+1. Click the **Process List**
+2. Select the game process `GrandLarcenyAuto.exe` and click **Open**.
+3. Set the scan options:
+   - **Scan Type:** `Exact Value`
+   - **Value Type:** `1 Byte`
+
+---
+
+## Memory Scanning (Finding the Wanted Stars Address)
+
+Our goal is to isolate the dynamic memory address that stores the wanted stars count.
+
+> **Note:** Do not start by scanning for `0` stars; instead, go do something illegal in-game first and search directly for `1` (scanning for 0 stars at the start may erase/miss the dynamic address we are looking for and floods the results with millions of useless addresses).
+
+### Step 1: First Scan (1 Star)
+Start the game and commit an illegal action such as stealing a car or killing someone to gain **1 star**:
+
+- Switch to Cheat Engine.
+- Set **Value** to `1`.
+- Click **First Scan**.
+- We find around 163 323 addresses currently holding the value `1`.
+
+![Cheat Engine scan for Value 1](/mc/images/look_for_value_1.png)
+
+### Step 2: Next Scan (5 Stars)
+Return to the game and kill more people to reach **5 stars**:
+
+- In Cheat Engine, set **Value** to `5`.
+- Click **Next Scan**.
+- The number of addresses drops to 4677.
+
+![Cheat Engine scan for Value 5](/mc/images/look_for_value_5.png)
+
+### Step 3: Dynamic Filtering (Decreasing Stars back to 1)
+To filter out and isolate the real address, let the police catch you decreasing from 5 down to 3, and then back down to 1:
+
+- Each time the stars change in-game, update the **Value** in Cheat Engine and click **Next Scan**.
+- After scanning for `1` again, you successfully narrow down to the exact address controlling the wanted level:
+
+![Cheat Engine scan after decreasing stars back to 1](/mc/images/look_for_value_1_last_value.png)
+
+```text
+Address       : 0x21B8E046CD8
+Value Type    : 1 Byte 
+Current Value : 1
+```
+---
+
+## Memory Modification (Setting Stars to 6)
+
+With the target address identified, we can now modify it:
+
+1. Select the address (`0x21B8E046CD8`) from the scan results list.
+2. Click the **Red Arrow** icon to add it to the bottom address table.
+
+![Adding address to the table via red arrow icon](/mc/images/symbol_red.png)
+
+3. Double-click the **Value** in the table and change it to `6`.
+
+![Changing the memory value to 6 in Cheat Engine](/mc/images/changing%20the%20Value%20to%206.png)
+
+```text
+[+] Address: 21B8E046CD8 | Type: 1 Byte | Value: 6
+```
+
+Looking back at the game, the 6th star is now active!
+
+![Game HUD with 6 stars active](/mc/images/results_after_value_changes_to_6.png)
+
+---
+
+## Unlocking the Vault & Capturing the Flag
+
+Now that our wanted level is set to 6 stars:
+
+1. Walk over to the **Vault**.
+2. Stand near the vault door and press **`F`** to interact.
+
+
+![Unlocking the safehouse vault and retrieving the flag](/mc/images/flag.png)
