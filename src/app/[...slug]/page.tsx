@@ -129,6 +129,21 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                     <div>
                       {/* Header section */}
                       <div className="flex flex-col items-center my-12 md:my-16">
+                        {/* Decorative opening phrase, kept outside the document heading hierarchy */}
+                        {liftedH1 ? (
+                          <p
+                            lang="ar"
+                            dir="rtl"
+                            className="text-center font-fustat"
+                            style={{
+                              fontSize: "clamp(2.5rem, 7vw, 4.5rem)",
+                              lineHeight: 1.25,
+                              marginBottom: "clamp(2rem, 4vw, 3rem)",
+                            }}
+                          >
+                            {liftedH1}
+                          </p>
+                        ) : null}
                         <div className="flex justify-center mb-3">
                           <p className="text-zinc-500 text-xs font-mono tracking-widest">
                             {formatDisplayDate(post.meta.date)}
@@ -146,13 +161,6 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                         ) : null}
                         {category ? <p className="text-zinc-400 text-xs uppercase tracking-widest mt-2">{category}</p> : null}
                       </div>
-
-                      {/* Decorative opening phrase, kept outside the document heading hierarchy */}
-                      {liftedH1 ? (
-                        <p lang="ar" dir="rtl" className="text-center font-fustat text-2xl sm:text-4xl leading-tight my-6">
-                          {liftedH1}
-                        </p>
-                      ) : null}
 
                       {/* Cover image */}
                       <div className="mb-8 md:mb-12">
