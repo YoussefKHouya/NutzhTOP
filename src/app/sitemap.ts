@@ -2,9 +2,7 @@ import type { MetadataRoute } from "next";
 import { getAllPosts } from "@/lib/posts";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const envBase = (process.env.NEXT_PUBLIC_SITE_URL || "").trim().replace(/\/$/, "");
-  const isNutzhDomain = /^https:\/\/(?:www\.)?nutzh\.top$/i.test(envBase);
-  const base = (isNutzhDomain ? envBase : "https://www.nutzh.top").replace(/\/$/, "");
+  const base = "https://nutzh.top";
 
   const staticRoutes: MetadataRoute.Sitemap = [
     {

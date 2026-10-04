@@ -5,9 +5,10 @@ import { LoaderOverlay } from "@/components/LoaderOverlay";
 import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://nutzh.top"),
   title: {
-    default: "Nutzh",
-    template: "%s | Nutzh",
+    default: "Nutzh Blog – Offensive Security Writeups & Projects",
+    template: "%s | Nutzh Blog",
   },
   description: "Nutzh blog",
 };

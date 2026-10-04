@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import { SiteShell } from "@/components/SiteShell";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "How Nutzh.top handles analytics and visitor data.",
+  alternates: { canonical: "/privacy-policy" },
 };
 
 export default function PrivacyPolicyPage() {

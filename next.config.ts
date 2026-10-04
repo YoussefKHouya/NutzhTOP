@@ -38,6 +38,16 @@ const nextConfig: NextConfig = {
   pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
   allowedDevOrigins: ["192.168.1.49"],
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.nutzh.top" }],
+        destination: "https://nutzh.top/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { SiteShell } from "@/components/SiteShell";
 import { SectionTitle } from "@/components/SectionTitle";
 import { PostCard } from "@/components/PostCard";
 import { getAllPosts } from "@/lib/posts";
+
+export const metadata: Metadata = {
+  title: "Cybersecurity & CTF Writeups",
+  alternates: { canonical: "/my-writeups" },
+};
 
 export default function MyWriteupsPage() {
   const posts = getAllPosts().filter((p) => (p.meta.type || "writeup") === "writeup");

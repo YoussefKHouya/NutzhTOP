@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { SiteShell } from "@/components/SiteShell";
 import { SectionTitle } from "@/components/SectionTitle";
 import { PostCard } from "@/components/PostCard";
 import { getAllPosts } from "@/lib/posts";
+
+export const metadata: Metadata = {
+  title: "Security Tools & Projects",
+  alternates: { canonical: "/projects" },
+};
 
 export default function ProjectsPage() {
   const list = getAllPosts().filter((p) => (p.meta.type || "writeup") === "project");

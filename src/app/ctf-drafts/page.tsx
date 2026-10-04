@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import crypto from "node:crypto";
 import Link from "next/link";
 import { cookies } from "next/headers";
@@ -8,6 +9,11 @@ import { getAllPosts } from "@/lib/posts";
 import { DRAFT_ACCESS_COOKIE, hasDraftAccess } from "@/lib/drafts";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Private CTF Drafts",
+  robots: { index: false, follow: false },
+};
 
 function safeEqual(a: string, b: string) {
   const aa = Buffer.from(a);

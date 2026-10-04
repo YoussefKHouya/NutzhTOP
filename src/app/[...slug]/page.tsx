@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { SiteShell } from "@/components/SiteShell";
@@ -54,6 +55,45 @@ export function generateStaticParams() {
   return getAllPostSlugs().map((slug) => ({ slug }));
 }
 
+function getSeoTitle(slug: string[], title: string, type?: string) {
+  if (type === "project" || slug[0] === "projects") return `${title} Security Project`;
+
+  const category = slug[0]?.toLowerCase();
+  const labels: Record<string, string> = {
+    "hack-the-box": "Hack The Box Writeup",
+    hackmyvm: "HackMyVM Writeup",
+    "try-hack-me": "TryHackMe Writeup",
+    vulnyx: "Vulnyx Writeup",
+    vulnvm: "VulnVM Writeup",
+    payload: "Security Research",
+  };
+
+  return `${title} ${labels[category] || "CTF Writeup"}`;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string[] }>;
+}): Promise<Metadata> {
+  try {
+    const { slug } = await params;
+    const post = getPostBySlug(slug, { includeDrafts: true });
+    const canonicalPath = `/${slug.join("/")}`;
+
+    return {
+      title: getSeoTitle(slug, post.meta.title, post.meta.type),
+      alternates: { canonical: canonicalPath },
+      robots: post.meta.draft ? { index: false, follow: false } : undefined,
+    };
+  } catch {
+    return {
+      title: "Page Not Found",
+      robots: { index: false, follow: false },
+    };
+  }
+}
+
 export default async function PostPage({ params }: { params: Promise<{ slug: string[] }> }) {
   try {
     const { slug } = await params;
@@ -107,9 +147,11 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
                         {category ? <p className="text-zinc-400 text-xs uppercase tracking-widest mt-2">{category}</p> : null}
                       </div>
 
-                      {/* Lifted H1 (e.g., Arabic phrase) above image */}
+                      {/* Decorative opening phrase, kept outside the document heading hierarchy */}
                       {liftedH1 ? (
-                        <h1 className="text-center font-fustat text-2xl sm:text-4xl leading-tight my-6">{liftedH1}</h1>
+                        <p lang="ar" dir="rtl" className="text-center font-fustat text-2xl sm:text-4xl leading-tight my-6">
+                          {liftedH1}
+                        </p>
                       ) : null}
 
                       {/* Cover image */}

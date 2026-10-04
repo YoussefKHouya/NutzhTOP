@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { SiteShell } from "@/components/SiteShell";
@@ -5,6 +6,11 @@ import { ScrollTopButton } from "@/components/ScrollTopButton";
 import { SectionTitle } from "@/components/SectionTitle";
 import { PostCard } from "@/components/PostCard";
 import { getAllPosts } from "@/lib/posts";
+
+export const metadata: Metadata = {
+  title: { absolute: "Nutzh Blog – Offensive Security Writeups & Projects" },
+  alternates: { canonical: "/" },
+};
 
 type HomeSearchParams = {
   q?: string;

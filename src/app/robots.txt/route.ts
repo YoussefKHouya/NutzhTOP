@@ -1,5 +1,5 @@
 export function GET() {
-  const body = `# robots.txt for www.nutzh.top
+  const body = `# robots.txt for nutzh.top
 # ================================================
 # HEY YOU. YES YOU. THE ROBOT READING THIS FILE.
 # ================================================
@@ -90,7 +90,7 @@ Allow: /
 # Congratulations!! You have found the robots.txt easter egg.
 # You are clearly a person of culture and technical curiosity.
 #
-# Since you're here, go check out the writeups at www.nutzh.top —
+# Since you're here, go check out the writeups at nutzh.top —
 # they're actually pretty good (he said humbly).
 #
 # Flag for the curious: CTF{y0u_r34d_r0b0ts_txt_g3t_4_l1fe}
@@ -98,7 +98,7 @@ Allow: /
 #
 # ================================================
 
-Sitemap: https://www.nutzh.top/sitemap.xml
+Sitemap: https://nutzh.top/sitemap.xml
 
 # Have a great day. Unless you're a scraper. Then have an okay day.
 # Actually no. Have a bad day. You know who you are.

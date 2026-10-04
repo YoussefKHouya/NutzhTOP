@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import { SiteShell } from "@/components/SiteShell";
+
+export const metadata: Metadata = {
+  title: "About",
+  alternates: { canonical: "/about" },
+};
 
 const skills = ["PYTHON", "WEBEXPLOIT", "GAMING", "LEARNING"];
 
