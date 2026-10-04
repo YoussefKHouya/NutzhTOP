@@ -174,7 +174,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
               href="/"
             >
               <span className="logo-track relative z-10 mr-2">
-                Nutzh
+                Nutzh Blog
                 <img alt="2D Mario" loading="lazy" width={100} height={100} decoding="async" className="animate-cat" style={{ color: "transparent" }} src="/mc/images/2d-mario-running.gif" />
               </span>
             </Link>
