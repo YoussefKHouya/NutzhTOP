@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { LoaderOverlay } from "@/components/LoaderOverlay";
 import { Analytics } from "@vercel/analytics/next";
@@ -29,7 +30,9 @@ export default function RootLayout({
       </head>
       <body className="antialiased flex flex-col min-h-screen">
         <div className="dot-overlay" />
-        <LoaderOverlay />
+        <Suspense fallback={null}>
+          <LoaderOverlay />
+        </Suspense>
         {children}
         <Analytics />
       </body>

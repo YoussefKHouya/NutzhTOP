@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const NAV_INTENT_KEY = "mc.loader.navIntentTs";
 const LOADER_DELAY_MS = 450;
 
 export function LoaderOverlay() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const navigationKey = `${pathname}?${searchParams.toString()}`;
   const [visible, setVisible] = useState(false);
   const [pct, setPct] = useState(0);
   const showDelayRef = useRef<number | null>(null);
@@ -79,6 +81,8 @@ export function LoaderOverlay() {
   // Delayed loader: fast pages skip it, slow client navigations show it.
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
@@ -91,6 +95,9 @@ export function LoaderOverlay() {
 
       const isInternal = href.startsWith("/") || href.startsWith(window.location.origin);
       if (!isInternal) return;
+
+      const destination = new URL(href, window.location.href);
+      if (destination.href === window.location.href) return;
 
       try {
         window.sessionStorage.setItem(NAV_INTENT_KEY, String(Date.now()));
@@ -126,7 +133,7 @@ export function LoaderOverlay() {
       const id = window.setTimeout(finishLoader, 0);
       return () => window.clearTimeout(id);
     }
-  }, [pathname, finishLoader, clearTimers]);
+  }, [navigationKey, finishLoader, clearTimers]);
 
   useEffect(() => clearTimers, [clearTimers]);
 
