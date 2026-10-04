@@ -312,13 +312,13 @@ print(message.decode())
 
 ```
 The script returned a flag-looking value, but it was actually the missing last part of the SSH key.
-```
+```text
 flag{sMZfeCxJpMbEX0fLAAAADlN1YmxhcmdlQFZhdWx0AQIDBA==}
 ```
 
 After fixing the corrupted parts of the key, the recovered key looked like this:
 
-```
+```text
 -----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABFwAAAAdzc2gtcn
 NhAAAAAwEAAQAAAQEA8Le3BIFbL/x2Sj6XezgLN74alDkgAAAKA0SMbuYhfOdahinbXffT
