@@ -341,11 +341,14 @@ so after enumerating the user , we found out that he is with group pos-ops
 
 first thing we look at is what runs as root and touches something our group owns , also there is some script in /opt/vrs (u could find them with Linpeas.sh)
 
+these two entries stood out in the `/etc/systemd/system` listing :
+
 ```bash
-dutyfree-kiosk@dutyfree-kiosk7:~$ ls /etc/systemd/system
-/etc/systemd/system/vrs-duty-apply.path
-/etc/systemd/system/vrs-duty-apply.service
+dutyfree-kiosk@dutyfree-kiosk7:~$ ls -1 /etc/systemd/system
+vrs-duty-apply.path
+vrs-duty-apply.service
 ```
+
 i opened both to see what triggered the service and what it ran :
 
 ```ini
