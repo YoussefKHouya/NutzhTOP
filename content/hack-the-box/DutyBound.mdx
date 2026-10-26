@@ -344,9 +344,11 @@ first thing we look at is what runs as root and touches something our group owns
 these two entries stood out in the `/etc/systemd/system` listing :
 
 ```bash
-dutyfree-kiosk@dutyfree-kiosk7:~$ ls -1 /etc/systemd/system
+dutyfree-kiosk@dutyfree-kiosk7:~$ ls /etc/systemd/system
+<snip>
 vrs-duty-apply.path
 vrs-duty-apply.service
+</snip>
 ```
 
 i opened both to see what triggered the service and what it ran :
